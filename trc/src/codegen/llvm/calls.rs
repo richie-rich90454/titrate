@@ -7,7 +7,7 @@ use super::vtable::{basic_metadata_to_basic_type, emit_direct_call};
 use super::{fn_sig_has_type_param, ClosureSig, LlvmBackend, TcoTrampoline};
 use inkwell::module::Linkage;
 
-use crate::ast::{Expr, Type};
+use crate::ast::{ClassMember, Expr, Type};
 use inkwell::types::{BasicMetadataTypeEnum, BasicTypeEnum};
 use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue};
 
@@ -116,6 +116,20 @@ enum ModuleTargetResolution<'ctx> {
 }
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Compile a parent class declaration on demand. Skeleton registration
+    /// publishes struct layout but no constructor/method symbols; a derived
+    /// class compiled earlier in declaration order (or from inside another
+    /// constructor) otherwise cannot bind `super.init(...)`.
+    fn ensure_parent_class_compiled(&mut self, parent_name: &str) -> Result<(), String> {
+        if self.classes_compiled.contains(parent_name) {
+            return Ok(());
+        }
+        if let Some(decl) = self.class_decls.get(parent_name).cloned() {
+            self.compile_class_decl(&decl)?;
+        }
+        Ok(())
+    }
+
     fn check_call_args(
         f: inkwell::values::FunctionValue<'ctx>,
         args: &[BasicMetadataValueEnum<'ctx>],
@@ -330,6 +344,90 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// Declared parameter types of `class.method` with the given arity
+    /// (including the implicit `this`), walking the parent chain.
+    fn class_method_params_for_arity(
+        &self,
+        class: &str,
+        method: &str,
+        arity: usize,
+    ) -> Option<Vec<Type>> {
+        let mut current = Some(class.to_string());
+        let mut seen = std::collections::HashSet::new();
+        while let Some(name) = current {
+            if !seen.insert(name.clone()) {
+                break;
+            }
+            let decl = self.class_decls.get(&name)?.clone();
+            for m in &decl.members {
+                let m = match m {
+                    ClassMember::Method(m) | ClassMember::Constructor(m) => m,
+                    _ => continue,
+                };
+                let m_arity = m.params.iter().filter(|p| p.name != "self").count() + 1;
+                if m.name == method && m_arity == arity {
+                    return Some(
+                        m.params
+                            .iter()
+                            .filter(|p| p.name != "self")
+                            .map(|p| p.typ.clone())
+                            .collect(),
+                    );
+                }
+            }
+            current = decl.parent.as_ref().map(|t| t.name().to_string());
+        }
+        None
+    }
+
+    /// Bare call to a method on the current class (implicit `this`). Runs
+    /// before ordinary function dispatch: a top-level function with the same
+    /// name but a different arity must not capture the call (e.g. top-level
+    /// `pack(widget, side)` vs `Widget.pack(options)`).
+    fn try_compile_implicit_this_call(
+        &mut self,
+        name: &str,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let (this, class) = match (self.current_this, self.current_class_name.as_ref()) {
+            (Some(t), Some(c)) => (t, c.clone()),
+            _ => return Ok(None),
+        };
+        if self.locals.contains_key(name) {
+            return Ok(None);
+        }
+        let arg_types: Vec<Type> = args.iter().map(|a| self.infer_expr_type(a)).collect();
+        if self.resolve_user_fn_typed(name, &arg_types).is_some()
+            || self.resolve_user_fn(name, args.len()).is_some()
+        {
+            return Ok(None);
+        }
+        let arity = args.len() + 1;
+        let base = format!("{}_{}", class, name);
+        let method_fn = self
+            .fn_overloads
+            .get(&(base.clone(), arity))
+            .copied()
+            .or_else(|| self.module.get_function(&format!("{}__a{}", base, arity)))
+            .or_else(|| {
+                self.module
+                    .get_function(&base)
+                    .filter(|f| f.get_type().get_param_types().len() == arity)
+            });
+        let Some(method_fn) = method_fn else {
+            return Ok(None);
+        };
+        if self
+            .class_method_params_for_arity(&class, name, arity)
+            .is_none()
+        {
+            return Ok(None);
+        }
+        let params = self.class_method_params_for_arity(&class, name, arity);
+        let arg_vals = self.build_this_call_args(method_fn, params.as_deref(), args)?;
+        emit_direct_call(self.context, &self.builder, method_fn, this, &arg_vals).map(Some)
+    }
+
     /// Compile a function call without explicit type arguments.
     pub(super) fn compile_call(
         &mut self,
@@ -518,7 +616,16 @@ impl<'ctx> LlvmBackend<'ctx> {
                 "codegen: super() call has no 'this' pointer".to_string()
             })?;
             if method == "init" {
-                let ctor = parent_info.constructor.ok_or_else(|| {
+                let mut ctor = parent_info.constructor;
+                if ctor.is_none() {
+                    // The parent may only be a skeleton here: its declaration
+                    // is compiled later in the program pass (or on demand for
+                    // a generic specialization). Compile it now so its
+                    // constructor is published before this super() call.
+                    self.ensure_parent_class_compiled(&parent_name)?;
+                    ctor = self.class_infos.get(&parent_name).and_then(|i| i.constructor);
+                }
+                let ctor = ctor.ok_or_else(|| {
                     format!("codegen: parent class '{}' has no constructor", parent_name)
                 })?;
                 let ctor_params = self.method_decl_params(&parent_name, "init");
@@ -529,6 +636,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 return Ok(i32_ty.const_int(0, false).into());
             }
             let method_fn_name = format!("{}_{}", parent_name, method);
+            self.ensure_parent_class_compiled(&parent_name)?;
             let method_fn = self
                 .module
                 .get_function(&method_fn_name)
@@ -613,6 +721,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                         return Ok(v);
                     }
                 }
+            }
+        }
+
+        if let Expr::Identifier(name, _) = callee {
+            if let Some(v) = self.try_compile_implicit_this_call(name, args)? {
+                return Ok(v);
             }
         }
 
@@ -901,8 +1015,31 @@ impl<'ctx> LlvmBackend<'ctx> {
                     match resolved {
                         ModuleTargetResolution::Generic { module, name } => {
                             let saved = self.call_module_hint.replace(module);
+                            // A `self.genericFn(...)` member call is an
+                            // implicit-receiver call to a top-level generic
+                            // function: `self` occupies the function's first
+                            // parameter. Prepend `this` so the specialization
+                            // arity matches the emitted call (e.g.
+                            // `self.zipMap(other, f)` -> `zipMap(this, other, f)`).
+                            let with_receiver: Vec<Expr>;
+                            let call_args: &[Expr] = if target
+                                .modules
+                                .first()
+                                .is_some_and(|m| m == "self" || m == "this")
+                                && self.current_this.is_some()
+                                && self.generic_fn_decls.get(&name).is_some_and(|ds| {
+                                    ds.iter().any(|d| d.params.len() == args.len() + 1)
+                                })
+                            {
+                                with_receiver = std::iter::once(Expr::This(crate::ast::Span::unknown()))
+                                    .chain(args.iter().cloned())
+                                    .collect();
+                                &with_receiver
+                            } else {
+                                args
+                            };
                             let result =
-                                self.compile_generic_fn_call(&name, args, explicit_type_args);
+                                self.compile_generic_fn_call(&name, call_args, explicit_type_args);
                             self.call_module_hint = saved;
                             if let Some(v) = result? {
                                 return Ok(v);
@@ -943,26 +1080,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Bare call to a method on the current class (implicit `this`), e.g.
         // `this._singletonMap(...)` written as `_singletonMap(...)`.
         if let Expr::Identifier(name, _) = callee {
-            if let (Some(this), Some(class)) = (self.current_this, self.current_class_name.as_ref()) {
-                let method_fn_name = format!("{}_{}", class, name);
-                if let Some(fn_val) = self.module.get_function(&method_fn_name) {
-                    let method_params = self.method_decl_params(class, name);
-                    let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
-                        vec![this.into()];
-                    for (i, arg) in args.iter().enumerate() {
-                        let declared = method_params.as_ref().and_then(|p| p.get(i));
-                        arg_vals.push(
-                            self.coerce_user_call_arg(arg, declared, None)?,
-                        );
-                    }
-                    Self::check_call_args(fn_val, &arg_vals, "direct")?;
-                    let call = self.builder.build_call(fn_val, &arg_vals, "call")
-                        .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
-                    return match call.try_as_basic_value() {
-                        inkwell::values::ValueKind::Basic(v) => Ok(v),
-                        _ => Ok(self.context.i32_type().const_zero().into()),
-                    };
-                }
+            if let Some(v) = self.try_compile_implicit_this_call(name, args)? {
+                return Ok(v);
             }
         }
 
@@ -1731,5 +1850,145 @@ mod call_target_tests {
         );
         assert!(err.contains("tried: tt::util::missing"), "{}", err);
         assert!(err.contains("explicit type arguments [double]"), "{}", err);
+    }
+}
+
+#[cfg(test)]
+mod call_arity_regression_tests {
+    use super::LlvmBackend;
+    use crate::{analyzer, lexer, parser};
+    use inkwell::context::Context;
+    use std::path::Path;
+
+    fn compile_full(source: &str, root: &Path) -> Result<String, String> {
+        let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+        let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+        let program = analyzer::analyze(&ast).unwrap_or(ast);
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "regression");
+        backend.declare_natives();
+        backend.compile_program_to_ir_text(&program, root)
+    }
+
+    #[test]
+    fn super_init_compiles_parent_declared_after_child() {
+        let source = r#"
+            public class Child extends Parent {
+                public fn init(x: int) { super.init(x); }
+            }
+            public class Parent {
+                public int x;
+                public fn init(x: int) { this.x = x; }
+            }
+            public fn main(): void {
+                let c: Child = new Child(3);
+            }
+        "#;
+        let ir = compile_full(source, Path::new(".")).expect("compile");
+        assert!(ir.contains("call void @Parent_new"), "{}", ir);
+    }
+
+    #[test]
+    fn overloaded_class_methods_bind_by_arity() {
+        let source = r#"
+            public class Box<T> {
+                public T value;
+                public fn init(v: T) { this.value = v; }
+                public fn put(v: T): void { this.put(v, 1); }
+                public fn put(v: T, n: int): void { this.value = v; }
+            }
+            public fn main(): void {
+                let b: Box<string> = new Box<string>("x");
+                b.put("y");
+                b.put("z", 2);
+            }
+        "#;
+        let ir = compile_full(source, Path::new(".")).expect("compile");
+        assert!(ir.contains("@Box__string_put__a3"), "{}", ir);
+        assert!(ir.contains("call void @Box__string_put__a3"), "{}", ir);
+    }
+
+    #[test]
+    fn bare_method_call_prefers_implicit_this_over_wrong_arity_function() {
+        let source = r#"
+            public fn pack(widget: int, side: int): void {}
+            public class Widget {
+                public fn init() {}
+                public fn pack(options: int): void {}
+                public fn packDefault(): void { pack(1); }
+            }
+            public fn main(): void {
+                let w: Widget = new Widget();
+                w.packDefault();
+            }
+        "#;
+        let ir = compile_full(source, Path::new(".")).expect("compile");
+        assert!(ir.contains("call void @Widget_pack("), "{}", ir);
+    }
+
+    #[test]
+    fn constructor_overloads_bind_by_new_arity() {
+        let source = r#"
+            public class Pair {
+                public int a;
+                public fn init() { this.a = 0; }
+                public fn init(x: int) { this.a = x; }
+            }
+            public fn main(): void {
+                let p: Pair = new Pair();
+                let q: Pair = new Pair(2);
+            }
+        "#;
+        let ir = compile_full(source, Path::new(".")).expect("compile");
+        assert!(ir.contains("call void @Pair_new("), "{}", ir);
+        assert!(ir.contains("call void @Pair_new__a2("), "{}", ir);
+    }
+
+    #[test]
+    fn renamed_function_symbol_has_valid_linkage() {
+        let source = r#"
+            var _facility: int = 0;
+            public fn _facility(name: string, fallback: int): int { return fallback; }
+            public fn main(): void {
+                let v: int = _facility("kern", 1);
+            }
+        "#;
+        let ir = compile_full(source, Path::new(".")).expect("verify");
+        assert!(!ir.contains("declare internal"), "{}", ir);
+    }
+
+    #[test]
+    fn module_qualified_call_in_constructor_binds_before_class_bodies() {
+        let root = std::env::temp_dir().join(format!("titrate_modresolve_{}", std::process::id()));
+        let mods = root.join("mods");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&mods).expect("create temp modules");
+        std::fs::write(
+            mods.join("a.tr"),
+            "public fn load(path: string): int { return 1; }",
+        )
+        .expect("write a.tr");
+        std::fs::write(
+            mods.join("b.tr"),
+            "public fn load(path: string): string { return \"b\"; }",
+        )
+        .expect("write b.tr");
+        let source = r#"
+            import mods::a;
+            import mods::b;
+            public class C {
+                public fn init() {
+                    let v: int = a::load("x");
+                }
+            }
+            public fn main(): void {
+                let c: C = new C();
+            }
+        "#;
+        let result = compile_full(source, &root);
+        let _ = std::fs::remove_dir_all(&root);
+        let ir = result.expect("compile");
+        assert!(ir.contains("call i32 @load"), "{}", ir);
+        assert!(!ir.contains("call { i64, ptr } @load"), "{}", ir);
     }
 }

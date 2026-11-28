@@ -694,6 +694,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map(|d| d.params.iter().map(|p| p.typ.clone()).collect())
     }
 
+    /// Box a native-call argument whose declared Titrate type is `Variant`
+    /// (a two-word `{i64, ptr}` slot) but whose compiled LLVM value is still a
+    /// scalar. `as Variant` casts and erased generics can leave the scalar
+    /// unwrapped; native marshalling and argument validation both require the
+    /// declared shape.
+    pub(super) fn coerce_native_arg_value(
+        &self,
+        val: BasicValueEnum<'ctx>,
+        ty: &Type,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        if ty.name() != "Variant" || !(val.is_int_value() || val.is_float_value()) {
+            return Ok(val);
+        }
+        let target = llvm_types::llvm_type(self.context, ty)?;
+        self.cast_value_to_type(val, target)
+    }
+
     pub(super) fn coerce_user_call_arg(
         &mut self,
         arg: &Expr,
@@ -1116,6 +1133,40 @@ mod tests {
         let shaped = coerce_call_arg(&context, &builder, loaded, fat.into()).expect("coerce");
         assert!(shaped.is_struct_value());
         assert_eq!(shaped.into_struct_value().get_type(), fat);
+    }
+
+    #[test]
+    fn variant_scalar_arg_is_boxed() {
+        let context = inkwell::context::Context::create();
+        let backend = LlvmBackend::new(&context, "variant_arg_box");
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = backend.module.add_function("variant_box_host", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+
+        let variant_ty = llvm_types::llvm_type(&context, &Type::simple("Variant")).expect("Variant type");
+        assert!(variant_ty.is_struct_type());
+
+        let int_arg = context.i32_type().const_int(42, false);
+        let boxed = backend
+            .coerce_native_arg_value(int_arg.into(), &Type::simple("Variant"))
+            .expect("int Variant arg should box");
+        assert_eq!(boxed.get_type(), variant_ty);
+
+        let double_arg = context.f64_type().const_float(2.5);
+        let boxed_double = backend
+            .coerce_native_arg_value(double_arg.into(), &Type::simple("Variant"))
+            .expect("double Variant arg should box");
+        assert_eq!(boxed_double.get_type(), variant_ty);
+
+        // A non-Variant scalar must pass through untouched.
+        let plain = backend
+            .coerce_native_arg_value(int_arg.into(), &Type::simple("int"))
+            .expect("int arg should pass through");
+        assert!(plain.is_int_value());
+
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after Variant boxing");
     }
 
     #[test]

@@ -880,3 +880,114 @@ impl<'ctx> LlvmBackend<'ctx> {
             .map(|(name, _)| name.clone())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::analyzer;
+    use crate::ast::Declaration;
+    use crate::lexer;
+    use crate::parser;
+
+    fn compile_generic_iterator() -> String {
+        let source = r#"
+            public class Bag<T> {
+                private ArrayList<T> data;
+                public fn init() { this.data = new ArrayList<T>(); }
+                public fn add(x: T): void { this.data.add(x); }
+                public fn iterator(): ArrayList<T> {
+                    return this.data;
+                }
+            }
+            public fn main(): void {
+                let b = new Bag<int>();
+                b.add(7);
+                for (x in b.iterator()) {
+                    io::println(x);
+                }
+            }
+        "#;
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let context = inkwell::context::Context::create();
+        let mut backend = super::LlvmBackend::new(&context, "iterator_test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            match decl {
+                Declaration::Class(c) => {
+                    backend.class_decls.insert(c.name.clone(), c.clone());
+                }
+                Declaration::Function(f) if f.type_params.is_empty() => {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                }
+                _ => {}
+            }
+        }
+        let main = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("main");
+        backend.compile_main(main).expect("compile main");
+        assert!(
+            backend.module.verify().is_ok(),
+            "iterator module failed verification"
+        );
+        backend.module.print_to_string().to_string()
+    }
+
+    fn function_ir<'a>(ir: &'a str, name: &str) -> &'a str {
+        let needle = format!("@{}(", name);
+        for chunk in ir.split("define ").skip(1) {
+            let header = chunk.lines().next().unwrap_or("");
+            if header.contains(&needle) {
+                let end = chunk.find("\n}").unwrap_or(chunk.len());
+                return &chunk[..end];
+            }
+        }
+        panic!("function {} not found in IR:\n{}", name, ir)
+    }
+
+    /// A specialized generic iterator must GEP its own `this` parameter, not
+    /// a stale parameter left over from another function's compilation.
+    #[test]
+    fn generic_iterator_uses_own_function_argument() {
+        let ir = compile_generic_iterator();
+        let body = function_ir(&ir, "Bag__int_iterator");
+        assert!(
+            body.contains("getelementptr") && body.contains(", ptr %0,"),
+            "iterator field GEP must use its own argument: {}",
+            body
+        );
+    }
+
+    /// Every block emitted by generic iterator / for-in lowering ends in a
+    /// terminator (module verification above enforces this globally).
+    #[test]
+    fn iterator_blocks_are_terminated() {
+        let ir = compile_generic_iterator();
+        for name in ["Bag__int_iterator", "Bag__int_add", "main"] {
+            let body = function_ir(&ir, name);
+            for block in body.split("\n\n").skip(1) {
+                let last = block
+                    .lines()
+                    .rev()
+                    .find(|l| !l.trim().is_empty())
+                    .unwrap_or("")
+                    .trim_start();
+                assert!(
+                    last.starts_with("ret ")
+                        || last.starts_with("br ")
+                        || last.starts_with("switch ")
+                        || last.starts_with("unreachable"),
+                    "unterminated block in {}:\n{}",
+                    name,
+                    block
+                );
+            }
+        }
+    }
+}

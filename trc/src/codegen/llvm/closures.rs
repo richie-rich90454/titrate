@@ -701,6 +701,55 @@ impl<'ctx> LlvmBackend<'ctx> {
             .as_pointer_value()
     }
 
+    /// Flag set by `throw` when no catch block exists in the current function.
+    /// A caller's `try` checks it after each statement so exceptions can cross
+    /// a function boundary without branching to a block in another function.
+    pub(super) fn get_exception_flag(&self) -> PointerValue<'ctx> {
+        if let Some(g) = self.module.get_global("__titrate_thrown") {
+            return g.as_pointer_value();
+        }
+        let i1_ty = self.context.bool_type();
+        let g = self.module.add_global(i1_ty, None, "__titrate_thrown");
+        g.set_linkage(Linkage::Internal);
+        g.set_initializer(&i1_ty.const_zero());
+        g.as_pointer_value()
+    }
+
+    /// Emit a terminator that returns a zero value of the current function's
+    /// return type. Used after a non-local throw: the caller's `try` observes
+    /// the flag and redirects control to its catch handler.
+    fn build_throw_return(&mut self) -> Result<(), String> {
+        // Use the emitted LLVM signature, not the Titrate return type: `main`
+        // is declared `void` in Titrate but emits `i32 @main()`.
+        let ret_ty = self
+            .builder
+            .get_insert_block()
+            .and_then(|b| b.get_parent())
+            .and_then(|f| f.get_type().get_return_type());
+        match ret_ty {
+            Some(ty) => {
+                let zero: BasicValueEnum<'ctx> = match ty {
+                    inkwell::types::BasicTypeEnum::IntType(it) => it.const_zero().into(),
+                    inkwell::types::BasicTypeEnum::FloatType(ft) => ft.const_zero().into(),
+                    inkwell::types::BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                    inkwell::types::BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                    inkwell::types::BasicTypeEnum::ArrayType(at) => at.const_zero().into(),
+                    inkwell::types::BasicTypeEnum::VectorType(vt) => vt.const_zero().into(),
+                    inkwell::types::BasicTypeEnum::ScalableVectorType(vt) => vt.const_zero().into(),
+                };
+                self.builder
+                    .build_return(Some(&zero))
+                    .map_err(|e| format!("throw return failed: {:?}", e))?;
+            }
+            None => {
+                self.builder
+                    .build_return(None)
+                    .map_err(|e| format!("throw void return failed: {:?}", e))?;
+            }
+        }
+        Ok(())
+    }
+
     /// Compile `ok(value)` or `err(value)` into a `Result<T, E>` struct.
     ///
     /// The Result struct is `{ i32, i8* }` where:
@@ -865,18 +914,19 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Compile a `throw expr;` statement.
     ///
-    /// The expression is evaluated and its value is stored in the global
-    /// `__titrate_exception`. Control then branches to the nearest catch
-    /// block. If no catch block is active, an unreachable is emitted
-    /// (Phase 1 limitation).
+    /// The expression is evaluated, its payload is stored in the global
+    /// `__titrate_exception`, and `__titrate_thrown` is set. A catch block in
+    /// the *same* function is branched to directly. Otherwise the current
+    /// function returns a zero value of its return type and the flag lets the
+    /// caller's `try` redirect to its catch handler. A cross-function catch
+    /// block is never targeted: it belongs to a different LLVM function.
     pub(super) fn compile_throw(&mut self, expr: &Expr) -> Result<(), String> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
 
-        // Compile the thrown value.
         let v = self.compile_expr(expr)?;
 
-        // Store the value in __titrate_exception. If the value is not i8*,
-        // we store it as-is (Phase 1: assume string or pointer).
+        // Composite payloads live in a heap slot: the throwing frame is about
+        // to be left, so a stack alloca would dangle when the caller reads it.
         let ptr = if v.is_pointer_value() {
             v.into_pointer_value()
         } else if v.is_int_value() {
@@ -885,35 +935,46 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .build_int_to_ptr(iv, i8_ptr_ty, "throw.ptr")
                 .map_err(|e| format!("build_int_to_ptr throw failed: {:?}", e))?
         } else {
-            // Composite values (e.g. a string { i64, ptr }) are stored in a
-            // stack slot; the exception global carries the slot address.
-            let slot = self
+            let size = v
+                .get_type()
+                .size_of()
+                .ok_or_else(|| "codegen: cannot size thrown value".to_string())?;
+            let malloc_fn = self.get_function("titrate_malloc");
+            let raw = self
                 .builder
-                .build_alloca(v.get_type(), "throw.value")
-                .map_err(|e| format!("build_alloca throw failed: {:?}", e))?;
+                .build_call(malloc_fn, &[size.into()], "throw.slot")
+                .map_err(|e| format!("throw malloc failed: {:?}", e))?;
+            let slot = match raw.try_as_basic_value() {
+                inkwell::values::ValueKind::Basic(b) => b.into_pointer_value(),
+                _ => return Err("throw malloc returned no value".to_string()),
+            };
             self.builder
                 .build_store(slot, v)
                 .map_err(|e| format!("build_store throw value failed: {:?}", e))?;
-            self.builder
-                .build_bit_cast(slot, i8_ptr_ty, "throw.ptr")
-                .map_err(|e| format!("build_bit_cast throw failed: {:?}", e))?
-                .into_pointer_value()
+            slot
         };
 
         let exception_global = self.get_exception_global();
         self.builder
             .build_store(exception_global, ptr)
             .map_err(|e| format!("build_store throw exception failed: {:?}", e))?;
+        let flag = self.get_exception_flag();
+        self.builder
+            .build_store(flag, self.context.bool_type().const_all_ones())
+            .map_err(|e| format!("build_store throw flag failed: {:?}", e))?;
 
-        // Branch to catch block or unreachable.
-        if let Some(ctx) = self.catch_stack.last() {
+        let local_catch = self.catch_stack.last().filter(|ctx| {
+            self.builder
+                .get_insert_block()
+                .and_then(|b| b.get_parent())
+                == ctx.catch_block.get_parent()
+        });
+        if let Some(ctx) = local_catch {
             self.builder
                 .build_unconditional_branch(ctx.catch_block)
                 .map_err(|e| format!("build_br throw catch failed: {:?}", e))?;
         } else {
-            self.builder
-                .build_unreachable()
-                .map_err(|e| format!("build_unreachable throw failed: {:?}", e))?;
+            self.build_throw_return()?;
         }
 
         Ok(())
@@ -933,14 +994,28 @@ impl<'ctx> LlvmBackend<'ctx> {
         catch_block: &[Stmt],
     ) -> Result<(), String> {
         let i8_ptr_ty = self.context.ptr_type(AddressSpace::default());
+        let i1_ty = self.context.bool_type();
 
         let current_block = self
             .builder
             .get_insert_block()
             .ok_or("codegen: no insert block for try")?;
+        // Unreachable statements (e.g. after `return`) are still lowered. Never
+        // append the entry branch to a block that already has a terminator:
+        // continue in a fresh block instead so every block ends exactly once.
+        let predecessor = if current_block.get_terminator().is_some() {
+            let parent = current_block
+                .get_parent()
+                .ok_or("codegen: terminated try block has no parent")?;
+            let fresh = self.context.append_basic_block(parent, "try.unreachable");
+            self.builder.position_at_end(fresh);
+            fresh
+        } else {
+            current_block
+        };
         let try_body_block = self
             .context
-            .insert_basic_block_after(current_block, "try.body");
+            .insert_basic_block_after(predecessor, "try.body");
         let catch_handler_block = self
             .context
             .insert_basic_block_after(try_body_block, "try.catch");
@@ -965,21 +1040,58 @@ impl<'ctx> LlvmBackend<'ctx> {
             .build_unconditional_branch(try_body_block)
             .map_err(|e| format!("build_br try.body failed: {:?}", e))?;
 
-        // Compile the try body.
+        // Compile the try body, checking the throw flag after every statement
+        // so a throw from a callee redirects to this catch immediately.
+        let flag = self.get_exception_flag();
         self.builder.position_at_end(try_body_block);
-        for s in try_block {
+        self.builder
+            .build_store(flag, i1_ty.const_zero())
+            .map_err(|e| format!("clear throw flag failed: {:?}", e))?;
+        let mut current = try_body_block;
+        for (i, s) in try_block.iter().enumerate() {
+            if current.get_terminator().is_some() {
+                break;
+            }
+            self.builder.position_at_end(current);
             self.compile_stmt(s)?;
+            let after = self
+                .builder
+                .get_insert_block()
+                .unwrap_or(current);
+            if after.get_terminator().is_some() {
+                current = after;
+                break;
+            }
+            let check = self
+                .context
+                .insert_basic_block_after(after, &format!("try.check.{}", i));
+            self.builder
+                .build_unconditional_branch(check)
+                .map_err(|e| format!("build_br try.check failed: {:?}", e))?;
+            self.builder.position_at_end(check);
+            let thrown = self
+                .builder
+                .build_load(i1_ty, flag, "try.thrown")
+                .map_err(|e| format!("load throw flag failed: {:?}", e))?
+                .into_int_value();
+            let next = if i + 1 == try_block.len() {
+                end_block
+            } else {
+                self.context
+                    .insert_basic_block_after(check, &format!("try.next.{}", i))
+            };
+            self.builder
+                .build_conditional_branch(thrown, catch_handler_block, next)
+                .map_err(|e| format!("build_cond_br try.check failed: {:?}", e))?;
+            current = next;
         }
         // Pop the catch context.
         self.catch_stack.pop();
 
-        // If the try body completed normally (no throw), branch to end.
-        if self
-            .builder
-            .get_insert_block()
-            .and_then(|b| b.get_terminator())
-            .is_none()
-        {
+        // If the try body completed normally (no throw), branch to end. The
+        // last check already targets `end_block`; do not self-branch it.
+        if current != end_block && current.get_terminator().is_none() {
+            self.builder.position_at_end(current);
             self.builder
                 .build_unconditional_branch(end_block)
                 .map_err(|e| format!("build_br try.end failed: {:?}", e))?;
@@ -988,6 +1100,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Catch handler: load the error from __titrate_exception, bind it
         // to the catch variable, and compile the catch body.
         self.builder.position_at_end(catch_handler_block);
+        self.builder
+            .build_store(flag, i1_ty.const_zero())
+            .map_err(|e| format!("clear throw flag in catch failed: {:?}", e))?;
         let exception_global = self.get_exception_global();
         let error_val = self
             .builder
@@ -1063,5 +1178,315 @@ impl<'ctx> LlvmBackend<'ctx> {
 
         self.builder.position_at_end(end_block);
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::analyzer;
+    use crate::ast::Declaration;
+    use crate::lexer;
+    use crate::parser;
+
+    fn compile_program_checked(source: &str) -> Result<String, String> {
+        let tokens = lexer::tokenize(source).map_err(|e| format!("tokenize: {}", e))?;
+        let ast = parser::parse(tokens).map_err(|e| format!("parse: {}", e))?;
+        let typed = analyzer::analyze(&ast).map_err(|e| format!("analyze: {:?}", e))?;
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "throw_test");
+        backend.declare_natives();
+        for decl in &typed.declarations {
+            match decl {
+                Declaration::Function(f) if f.type_params.is_empty() => {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                }
+                Declaration::Class(c) => {
+                    backend.class_decls.insert(c.name.clone(), c.clone());
+                }
+                _ => {}
+            }
+        }
+        for decl in &typed.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    backend.compile_function(f)?;
+                }
+            }
+        }
+        let main = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .ok_or("no main function")?;
+        backend.compile_main(main)?;
+        backend.module.verify().map_err(|e| {
+            format!(
+                "LLVM module verification failed: {}\n{}",
+                e,
+                backend.module.print_to_string()
+            )
+        })?;
+        Ok(backend.module.print_to_string().to_string())
+    }
+
+    fn compile_program(source: &str) -> String {
+        compile_program_checked(source).expect("compile program")
+    }
+
+    fn function_ir<'a>(ir: &'a str, name: &str) -> &'a str {
+        let needle = format!("@{}(", name);
+        for chunk in ir.split("define ").skip(1) {
+            let header = chunk.lines().next().unwrap_or("");
+            if header.contains(&needle) {
+                let end = chunk.find("\n}").unwrap_or(chunk.len());
+                return &chunk[..end];
+            }
+        }
+        panic!("function {} not found in IR:\n{}", name, ir)
+    }
+
+    /// A `throw` in a method with a non-primitive return type must set the
+    /// propagation flag and return safely; it must not trap with `unreachable`
+    /// or branch to a catch block owned by the caller's function.
+    #[test]
+    fn throw_from_non_primitive_method_does_not_fault() {
+        let ir = compile_program(
+            r#"
+            public class Box {
+                public int value;
+                public fn init(v: int) { this.value = v; }
+                public fn get(): Box {
+                    if (this.value < 0) {
+                        throw "BoxError: negative";
+                    }
+                    return this;
+                }
+            }
+            public fn main(): void {
+                try {
+                    let b = new Box(-1);
+                    b.get();
+                    io::println("FAIL: should have thrown");
+                } catch (e: string) {
+                    io::println("PASS: caught");
+                }
+            }
+            "#,
+        );
+        let body = function_ir(&ir, "Box_get");
+        assert!(body.contains("@__titrate_thrown"), "throw must set the flag: {}", body);
+        assert!(!body.contains("unreachable"), "throw must not trap: {}", body);
+        assert!(body.contains(" ret "), "throw must return safely: {}", body);
+        let caller = function_ir(&ir, "main");
+        assert!(caller.contains("@__titrate_thrown"), "try must check the flag: {}", caller);
+    }
+
+    fn assert_control_flow(ir: &str, case: &str) {
+        for chunk in ir.split("define ").skip(1) {
+            let header = chunk.lines().next().unwrap_or("");
+            let fn_name = header
+                .split('@')
+                .nth(1)
+                .unwrap_or("")
+                .split('(')
+                .next()
+                .unwrap_or("");
+            let mut labels: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            for line in chunk.lines() {
+                if let Some((label, _)) = line.split_once(':') {
+                    let label = label.trim();
+                    if !label.is_empty()
+                        && !label.contains(|c: char| c.is_whitespace())
+                        && label
+                            .chars()
+                            .next()
+                            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+                    {
+                        labels.insert(label);
+                    }
+                }
+            }
+            for line in chunk.lines() {
+                for part in line.split("label %").skip(1) {
+                    let target = part
+                        .split(|c: char| c == ',' || c.is_whitespace())
+                        .next()
+                        .unwrap_or("");
+                    assert!(
+                        labels.contains(target),
+                        "{}: {} branches to undefined block {}:\n{}",
+                        case,
+                        fn_name,
+                        target,
+                        chunk
+                    );
+                }
+            }
+            let mut block = String::new();
+            let mut terminated = false;
+            for line in chunk.lines() {
+                let t = line.trim();
+                if t.is_empty() {
+                    continue;
+                }
+                if t.starts_with('}') {
+                    break;
+                }
+                if let Some((label, rest)) = t.split_once(':') {
+                    let label = label.trim();
+                    if !label.is_empty()
+                        && !label.contains(|c: char| c.is_whitespace())
+                        && label
+                            .chars()
+                            .next()
+                            .is_some_and(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.')
+                        && (rest.trim().is_empty() || rest.trim().starts_with(';'))
+                    {
+                        assert!(
+                            block.is_empty() || terminated,
+                            "{}: block {} lacks a terminator:\n{}",
+                            case,
+                            block,
+                            chunk
+                        );
+                        block = label.to_string();
+                        terminated = false;
+                        continue;
+                    }
+                }
+                assert!(
+                    !terminated,
+                    "{}: instruction after terminator in block {}:\n{}",
+                    case,
+                    block,
+                    chunk
+                );
+                terminated = t.starts_with("ret ")
+                    || t.starts_with("br ")
+                    || t.starts_with("unreachable")
+                    || t.starts_with("switch ");
+            }
+            assert!(
+                block.is_empty() || terminated,
+                "{}: block {} lacks a terminator:\n{}",
+                case,
+                block,
+                chunk
+            );
+        }
+    }
+
+    /// try/catch must always emit well-formed basic blocks: each block ends in
+    /// exactly one terminator, no instruction follows a terminator, and every
+    /// branch target is defined in its own function. This also covers lowering
+    /// of unreachable try/catch statements (after `return`), which previously
+    /// appended the entry branch after an existing terminator in `try.end`.
+    #[test]
+    fn try_catch_blocks_verify_and_preserve_semantics() {
+        let cases: &[(&str, &str)] = &[
+            (
+                "simple",
+                r#"
+                public fn main(): void {
+                    try { throw "boom"; } catch (e: string) { io::println("caught"); }
+                    io::println("done");
+                }
+                "#,
+            ),
+            (
+                "sequential",
+                r#"
+                public fn main(): void {
+                    try { throw "a"; } catch (e: string) { io::println("a"); }
+                    try { throw "b"; } catch (e: string) { io::println("b"); }
+                    io::println("done");
+                }
+                "#,
+            ),
+            (
+                "unreachable_after_return",
+                r#"
+                public fn main(): void {
+                    try { throw "a"; } catch (e: string) { io::println("a"); }
+                    return;
+                    try { throw "b"; } catch (e: string) { io::println("b"); }
+                }
+                "#,
+            ),
+            (
+                "nested",
+                r#"
+                public fn main(): void {
+                    try {
+                        try { throw "inner"; } catch (e: string) { io::println("inner"); }
+                        io::println("outer");
+                    } catch (e: string) { io::println("outer caught"); }
+                    io::println("done");
+                }
+                "#,
+            ),
+            (
+                "if_in_try",
+                r#"
+                public fn main(): void {
+                    let c = true;
+                    try {
+                        if (c) { throw "boom"; } else { io::println("no"); }
+                        io::println("after");
+                    } catch (e: string) { io::println("caught"); }
+                }
+                "#,
+            ),
+            (
+                "try_in_loop",
+                r#"
+                public fn main(): void {
+                    var i = 0;
+                    while (i < 2) {
+                        i = i + 1;
+                        try { throw "x"; } catch (e: string) { io::println("c"); }
+                    }
+                }
+                "#,
+            ),
+            (
+                "cross_function_throw",
+                r#"
+                public class Box {
+                    public int value;
+                    public fn init(v: int) { this.value = v; }
+                    public fn get(): int {
+                        if (this.value < 0) { throw "BoxError: negative"; }
+                        return this.value;
+                    }
+                }
+                public fn main(): void {
+                    try {
+                        let b = new Box(-1);
+                        io::println(Integer.toString(b.get()));
+                    } catch (e: string) {
+                        io::println("caught");
+                    }
+                }
+                "#,
+            ),
+        ];
+        for (name, src) in cases {
+            let ir = compile_program_checked(src)
+                .unwrap_or_else(|e| panic!("{} failed to compile and verify:\n{}", name, e));
+            assert_control_flow(&ir, name);
+        }
+        // Cross-function propagation must still use the throw flag: the callee
+        // sets it and returns; the caller checks it and redirects to its catch.
+        let ir = compile_program_checked(cases[6].1).expect("cross-function case");
+        let body = function_ir(&ir, "Box_get");
+        assert!(body.contains("@__titrate_thrown"), "callee must set flag: {}", body);
+        assert!(body.contains(" ret "), "callee must return after throw: {}", body);
+        let caller = function_ir(&ir, "main");
+        assert!(caller.contains("@__titrate_thrown"), "caller must check flag: {}", caller);
     }
 }

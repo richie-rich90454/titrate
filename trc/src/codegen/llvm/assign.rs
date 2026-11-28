@@ -363,48 +363,27 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_float_to_signed_int failed: {:?}", e))?;
             return Ok(result.into());
         }
-        // string struct { i64 len, ptr data } -> int: a single-character string
-        // yields that character's code (e.g. JsonValue.escapeString uses
-        // `String.charAt(c, 0) as int`). The generic struct->int path below
-        // would return the string length (always 1) instead.
+        // string struct { i64 len, ptr data } -> int: decode the Unicode
+        // scalar of a one-character string (String.charAt returns a 1-4 byte
+        // UTF-8 string). The generic struct->int path below would return the
+        // byte length (2 for "é") instead of the code point (233).
         if v.is_struct_value() && target_ty.is_int_type() && self.is_string_struct(&v) {
             if let BasicValueEnum::StructValue(sv) = v {
                 if sv.get_type().count_fields() == 2 {
-                    if let (Some(len_v), Some(ptr_v)) = (
-                        self.builder.build_extract_value(sv, 0, "cast.str.len").ok(),
-                        self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok(),
-                    ) {
-                        let len_i64 = len_v.into_int_value();
-                        if let BasicValueEnum::PointerValue(data) = ptr_v {
-                            let one = self.context.i64_type().const_int(1, false);
-                            let is_one = self
-                                .builder
-                                .build_int_compare(inkwell::IntPredicate::EQ, len_i64, one, "cast.str.isone")
-                                .map_err(|e| format!("cast str isone failed: {:?}", e))?;
-                            let byte = self
-                                .builder
-                                .build_load(self.context.i8_type(), data, "cast.str.byte")
-                                .map_err(|e| format!("cast str byte load failed: {:?}", e))?
-                                .into_int_value();
-                            let to_ty = target_ty.into_int_type();
-                            let code = if byte.get_type().get_bit_width() < to_ty.get_bit_width() {
-                                self.builder.build_int_z_extend(byte, to_ty, "cast.str.code")
-                            } else {
-                                self.builder.build_int_truncate(byte, to_ty, "cast.str.code")
-                            }
-                            .map_err(|e| format!("cast str code failed: {:?}", e))?;
-                            let fallback = if len_i64.get_type().get_bit_width() > to_ty.get_bit_width() {
-                                self.builder.build_int_truncate(len_i64, to_ty, "cast.str.fallback")
-                            } else {
-                                Ok(len_i64)
-                            }
-                            .map_err(|e| format!("cast str fallback failed: {:?}", e))?;
-                            let result = self
-                                .builder
-                                .build_select(is_one, code, fallback, "cast.str.value")
-                                .map_err(|e| format!("cast str select failed: {:?}", e))?;
-                            return Ok(result);
+                    let len_v = self.builder.build_extract_value(sv, 0, "cast.str.len").ok();
+                    let ptr_v = self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok();
+                    if let (Some(len_v), Some(BasicValueEnum::PointerValue(data))) = (len_v, ptr_v) {
+                        let scalar = self.build_string_scalar(len_v.into_int_value(), data)?;
+                        let to_ty = target_ty.into_int_type();
+                        let result = if scalar.get_type().get_bit_width() < to_ty.get_bit_width() {
+                            self.builder.build_int_z_extend(scalar, to_ty, "cast.str.code")
+                        } else if scalar.get_type().get_bit_width() > to_ty.get_bit_width() {
+                            self.builder.build_int_truncate(scalar, to_ty, "cast.str.code")
+                        } else {
+                            Ok(scalar)
                         }
+                        .map_err(|e| format!("cast str code failed: {:?}", e))?;
+                        return Ok(result.into());
                     }
                 }
             }
@@ -509,21 +488,34 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
-        // struct -> pointer: extract field 1 (data ptr) from {i64, ptr} struct.
-        if v.is_struct_value() && target_ty.is_pointer_type() && self.is_string_struct(&v) {
+        // struct -> pointer: extract the pointer word from a two-word Titrate
+        // value. Containers/strings/Variants keep data at field 1; interface
+        // fat pointers and closures keep the object/function at field 0.
+        if v.is_struct_value() && target_ty.is_pointer_type() {
             if let BasicValueEnum::StructValue(sv) = v {
-                if sv.get_type().count_fields() == 2 {
-                    if let Ok(f1) = self.builder.build_extract_value(sv, 1, "cast.struct.ptr") {
-                        let ptr_val = f1.into_pointer_value();
-                        let to_ptr = target_ty.into_pointer_type();
-                        if ptr_val.get_type() == to_ptr {
-                            return Ok(ptr_val.into());
+                let st = sv.get_type();
+                if is_container_or_fat_ptr_shape(st) {
+                    let idx = if st
+                        .get_field_type_at_index(0)
+                        .is_some_and(|t| t.is_pointer_type())
+                    {
+                        0
+                    } else {
+                        1
+                    };
+                    if let Ok(f) = self.builder.build_extract_value(sv, idx, "cast.struct.ptr") {
+                        if f.is_pointer_value() {
+                            let ptr_val = f.into_pointer_value();
+                            let to_ptr = target_ty.into_pointer_type();
+                            if ptr_val.get_type() == to_ptr {
+                                return Ok(ptr_val.into());
+                            }
+                            let cast = self
+                                .builder
+                                .build_bit_cast(ptr_val, to_ptr, "cast.ptr")
+                                .map_err(|e| format!("build_bit_cast ptr failed: {:?}", e))?;
+                            return Ok(cast);
                         }
-                        let cast = self
-                            .builder
-                            .build_bit_cast(ptr_val, to_ptr, "cast.ptr")
-                            .map_err(|e| format!("build_bit_cast ptr failed: {:?}", e))?;
-                        return Ok(cast);
                     }
                 }
             }
@@ -677,6 +669,37 @@ impl<'ctx> LlvmBackend<'ctx> {
                 }
             }
         }
+        // ptr -> { ptr, ptr } interface/closure slot: a bare object or function
+        // pointer has no vtable/capture, so store it in field 0 and a null word
+        // in field 1. This is the inverse of struct -> pointer above.
+        if v.is_pointer_value() && target_ty.is_struct_type() {
+            let st = target_ty.into_struct_type();
+            if st.count_fields() == 2
+                && st
+                    .get_field_type_at_index(0)
+                    .is_some_and(|t| t.is_pointer_type())
+                && st
+                    .get_field_type_at_index(1)
+                    .is_some_and(|t| t.is_pointer_type())
+            {
+                let null_word = st
+                    .get_field_type_at_index(1)
+                    .ok_or_else(|| "codegen: fat pointer has no second word".to_string())?
+                    .into_pointer_type()
+                    .const_null();
+                let res = self
+                    .builder
+                    .build_insert_value(st.const_zero(), v.into_pointer_value(), 0, "cast.fatptr.obj")
+                    .map_err(|e| format!("build_insert_value fatptr obj failed: {:?}", e))?;
+                let res = self
+                    .builder
+                    .build_insert_value(res, null_word, 1, "cast.fatptr.capture")
+                    .map_err(|e| format!("build_insert_value fatptr capture failed: {:?}", e))?;
+                if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
+                    return Ok(sv.into());
+                }
+            }
+        }
         // { i64, ptr } container slot <-> { ptr, ptr } interface fat pointer:
         // reshape the length word field by field (LLVM forbids struct
         // bitcasts). Restrict to these shapes so unrelated structs are not
@@ -693,6 +716,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     return Ok(reshaped.into());
                 }
             }
+        }
+        // A `null` literal in a struct slot (e.g. `return null` from a
+        // tuple-returning function) carries no fields. Zero the slot instead
+        // of rejecting the cast; a non-null pointer is never discarded here.
+        if v.is_pointer_value() && target_ty.is_struct_type() && v.into_pointer_value().is_null() {
+            return Ok(target_ty.into_struct_type().const_zero().into());
         }
         // float -> pointer: bitcast to a same-width int, then inttoptr.
         // (int -> pointer is handled above.)
@@ -733,6 +762,129 @@ impl<'ctx> LlvmBackend<'ctx> {
             v.get_type().print_to_string().to_string(),
             target_ty.print_to_string().to_string()
         ))
+    }
+
+    /// Decode the UTF-8 scalar held in a single-character string. Loads are
+    /// clamped to the last valid byte so short strings never read past the end.
+    fn build_string_scalar(
+        &self,
+        len: IntValue<'ctx>,
+        data: inkwell::values::PointerValue<'ctx>,
+    ) -> Result<IntValue<'ctx>, String> {
+        let i8_ty = self.context.i8_type();
+        let i64_ty = self.context.i64_type();
+        let zero = i64_ty.const_zero();
+        let one = i64_ty.const_int(1, false);
+        let nonempty = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::SGT, len, zero, "str.scalar.nonempty")
+            .map_err(|e| format!("str scalar nonempty failed: {:?}", e))?;
+        let dec = self
+            .builder
+            .build_int_sub(len, one, "str.scalar.last")
+            .map_err(|e| format!("str scalar decrement failed: {:?}", e))?;
+        let last = self
+            .builder
+            .build_select(nonempty, dec, zero, "str.scalar.clamped")
+            .map_err(|e| format!("str scalar clamp failed: {:?}", e))?
+            .into_int_value();
+
+        let byte_at = |i: u64, name: &str| -> Result<IntValue<'ctx>, String> {
+            let idx = i64_ty.const_int(i, false);
+            let in_bounds = self
+                .builder
+                .build_int_compare(inkwell::IntPredicate::ULT, idx, len, "str.scalar.inbounds")
+                .map_err(|e| format!("str scalar bounds failed: {:?}", e))?;
+            let offset = self
+                .builder
+                .build_select(in_bounds, idx, last, "str.scalar.offset")
+                .map_err(|e| format!("str scalar offset failed: {:?}", e))?
+                .into_int_value();
+            let ptr = unsafe { self.builder.build_gep(i8_ty, data, &[offset], "str.scalar.ptr") }
+                .map_err(|e| format!("str scalar gep failed: {:?}", e))?;
+            let byte = self
+                .builder
+                .build_load(i8_ty, ptr, name)
+                .map_err(|e| format!("str scalar load failed: {:?}", e))?
+                .into_int_value();
+            self.builder
+                .build_int_z_extend(byte, i64_ty, "str.scalar.byte64")
+                .map_err(|e| format!("str scalar zext failed: {:?}", e))
+        };
+        let b0 = byte_at(0, "str.scalar.b0")?;
+        let b1 = byte_at(1, "str.scalar.b1")?;
+        let b2 = byte_at(2, "str.scalar.b2")?;
+        let b3 = byte_at(3, "str.scalar.b3")?;
+
+        let masked = |v: IntValue<'ctx>, mask: u64, name: &str| -> Result<IntValue<'ctx>, String> {
+            self.builder
+                .build_and(v, i64_ty.const_int(mask, false), name)
+                .map_err(|e| format!("str scalar mask failed: {:?}", e))
+        };
+        let shifted = |v: IntValue<'ctx>, bits: u64, name: &str| -> Result<IntValue<'ctx>, String> {
+            self.builder
+                .build_left_shift(v, i64_ty.const_int(bits, false), name)
+                .map_err(|e| format!("str scalar shift failed: {:?}", e))
+        };
+        let join = |a: IntValue<'ctx>, b: IntValue<'ctx>, name: &str| -> Result<IntValue<'ctx>, String> {
+            self.builder
+                .build_or(a, b, name)
+                .map_err(|e| format!("str scalar join failed: {:?}", e))
+        };
+        let at_least = |v: IntValue<'ctx>, threshold: u64, name: &str| -> Result<IntValue<'ctx>, String> {
+            self.builder
+                .build_int_compare(
+                    inkwell::IntPredicate::UGE,
+                    v,
+                    i64_ty.const_int(threshold, false),
+                    name,
+                )
+                .map_err(|e| format!("str scalar compare failed: {:?}", e))
+        };
+        let choose = |cond: IntValue<'ctx>, yes: IntValue<'ctx>, no: IntValue<'ctx>, name: &str| {
+            self.builder
+                .build_select(cond, yes, no, name)
+                .map(|v| v.into_int_value())
+                .map_err(|e| format!("str scalar select failed: {:?}", e))
+        };
+
+        let c1 = masked(b0, 0x7F, "str.scalar.c1")?;
+        let c2 = join(
+            shifted(masked(b0, 0x1F, "str.scalar.c2.hi")?, 6, "str.scalar.c2.sh")?,
+            masked(b1, 0x3F, "str.scalar.c2.lo")?,
+            "str.scalar.c2",
+        )?;
+        let c3 = join(
+            join(
+                shifted(masked(b0, 0x0F, "str.scalar.c3.hi")?, 12, "str.scalar.c3.sh")?,
+                shifted(masked(b1, 0x3F, "str.scalar.c3.mid")?, 6, "str.scalar.c3.msh")?,
+                "str.scalar.c3.hi2",
+            )?,
+            masked(b2, 0x3F, "str.scalar.c3.lo")?,
+            "str.scalar.c3",
+        )?;
+        let c4 = join(
+            join(
+                join(
+                    shifted(masked(b0, 0x07, "str.scalar.c4.hi")?, 18, "str.scalar.c4.sh")?,
+                    shifted(masked(b1, 0x3F, "str.scalar.c4.b1")?, 12, "str.scalar.c4.b1sh")?,
+                    "str.scalar.c4.hi2",
+                )?,
+                shifted(masked(b2, 0x3F, "str.scalar.c4.b2")?, 6, "str.scalar.c4.b2sh")?,
+                "str.scalar.c4.hi3",
+            )?,
+            masked(b3, 0x3F, "str.scalar.c4.lo")?,
+            "str.scalar.c4",
+        )?;
+
+        let two = choose(at_least(b0, 0xC0, "str.scalar.two")?, c2, c1, "str.scalar.2")?;
+        let three = choose(at_least(b0, 0xE0, "str.scalar.three")?, c3, two, "str.scalar.3")?;
+        let four = choose(at_least(b0, 0xF0, "str.scalar.four")?, c4, three, "str.scalar.4")?;
+        let empty = self
+            .builder
+            .build_int_compare(inkwell::IntPredicate::EQ, len, zero, "str.scalar.empty")
+            .map_err(|e| format!("str scalar empty failed: {:?}", e))?;
+        choose(empty, zero, four, "str.scalar.value")
     }
 
     /// Compile a ternary expression using a phi node.
@@ -1125,6 +1277,106 @@ mod tests {
             .into_float_value()
             .print_to_string()
             .to_string()
+    }
+
+    #[test]
+    fn string_char_to_int_decodes_utf8_scalar() {
+        use inkwell::execution_engine::JitFunction;
+        use inkwell::OptimizationLevel;
+
+        super::super::target_wrappers::initialize_x86();
+        let cases: &[(&str, &[u8], i32)] = &[
+            ("ascii", b"A", 65),
+            ("two_byte", &[0xC3, 0xA9], 233),          // é
+            ("three_byte", &[0xE2, 0x82, 0xAC], 8364), // €
+        ];
+        for (name, bytes, expected) in cases {
+            let context = Context::create();
+            let backend = LlvmBackend::new(&context, "utf8_scalar_test");
+            let fn_ty = context.i32_type().fn_type(&[], false);
+            let f = backend.module.add_function("utf8_scalar_fn", fn_ty, None);
+            let entry = context.append_basic_block(f, "entry");
+            backend.builder.position_at_end(entry);
+            let arr_ty = context.i8_type().array_type(bytes.len() as u32);
+            let global = backend.module.add_global(arr_ty, None, name);
+            global.set_initializer(&context.const_string(bytes, false));
+            global.set_constant(true);
+            let slot = numeric_slot_ty(&context).const_named_struct(&[
+                context.i64_type().const_int(bytes.len() as u64, false).into(),
+                global.as_pointer_value().into(),
+            ]);
+            let casted = backend
+                .cast_value_to_type(slot.into(), context.i32_type().into())
+                .unwrap_or_else(|e| panic!("{} should cast to int: {}", name, e))
+                .into_int_value();
+            backend.builder.build_return(Some(&casted)).expect("return");
+            assert!(backend.module.verify().is_ok(), "invalid IR for {}", name);
+            let engine = backend
+                .module
+                .create_jit_execution_engine(OptimizationLevel::None)
+                .unwrap_or_else(|e| panic!("JIT engine for {}: {:?}", name, e));
+            type CastFn = unsafe extern "C" fn() -> i32;
+            let f: JitFunction<CastFn> = unsafe { engine.get_function("utf8_scalar_fn") }
+                .unwrap_or_else(|_| panic!("JIT function for {}", name));
+            assert_eq!(unsafe { f.call() }, *expected, "{} decoded scalar", name);
+        }
+    }
+
+    #[test]
+    fn container_to_fat_ptr_coercion_roundtrips() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let container = context.struct_type(&[context.i64_type().into(), ptr_ty.into()], false);
+        let fat = context.struct_type(&[ptr_ty.into(), ptr_ty.into()], false);
+
+        // Bare pointer -> fat pointer (a function/class pointer stored in a
+        // closure/interface slot) must insert a null second word.
+        let bare = ptr_ty.const_null();
+        let as_fat = backend
+            .cast_value_to_type(bare.into(), fat.into())
+            .expect("ptr should coerce to fat pointer");
+        assert_eq!(as_fat.get_type(), fat.into());
+        let back = backend
+            .cast_value_to_type(as_fat, ptr_ty.into())
+            .expect("fat pointer should coerce back to ptr");
+        assert_eq!(back.get_type(), ptr_ty.into());
+
+        // Container <-> fat pointer must reshape field by field in both
+        // directions without losing the data pointer.
+        let data = ptr_ty.const_null();
+        let slot = container.const_named_struct(&[
+            context.i64_type().const_int(7, false).into(),
+            data.into(),
+        ]);
+        let reshaped = backend
+            .cast_value_to_type(slot.into(), fat.into())
+            .expect("container should reshape to fat pointer");
+        assert_eq!(reshaped.get_type(), fat.into());
+        let restored = backend
+            .cast_value_to_type(reshaped, container.into())
+            .expect("fat pointer should reshape back to container");
+        assert_eq!(restored.get_type(), container.into());
+        backend.builder.build_return(None).expect("return");
+        assert!(
+            backend.module.verify().is_ok(),
+            "invalid IR after container/fat-pointer coercion"
+        );
+    }
+
+    #[test]
+    fn null_ptr_zeroes_struct_return_slot() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let tuple = context.struct_type(
+            &[numeric_slot_ty(&context).into(), context.i32_type().into()],
+            false,
+        );
+        let ptr_ty = context.ptr_type(AddressSpace::default());
+        let casted = backend
+            .cast_value_to_type(ptr_ty.const_null().into(), tuple.into())
+            .expect("null should zero a struct slot");
+        assert_eq!(casted.get_type(), tuple.into());
     }
 
     #[test]

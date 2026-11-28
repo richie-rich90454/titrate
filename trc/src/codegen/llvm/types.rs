@@ -243,6 +243,32 @@ pub fn is_primitive_name(name: &str) -> bool {
     )
 }
 
+/// Resolve a source-level type name used by an `is` check against the names
+/// compiled into the translation unit. Generic classes are registered under
+/// mangled specialization names (`Array__int`) and imported declarations may
+/// keep a module suffix (`tt.util.Array`), while the `is` target is written
+/// with its bare source name. This mirrors the bytecode VM's simple-name
+/// matching so both backends accept the same targets.
+///
+/// Returns `None` when no compiled name corresponds to `requested`, so the
+/// caller can report a precise error instead of silently failing the check.
+pub fn resolve_is_target_name<'a, I>(requested: &str, compiled_names: I) -> Option<String>
+where
+    I: IntoIterator<Item = &'a String>,
+{
+    let mut names: Vec<&str> = compiled_names.into_iter().map(String::as_str).collect();
+    names.sort_unstable();
+    fn simple(name: &str) -> &str { name.rsplit('.').next().unwrap_or(name) }
+    let mangled = format!("{requested}__");
+    names
+        .iter()
+        .copied()
+        .find(|name| *name == requested)
+        .or_else(|| names.iter().copied().find(|name| simple(name) == requested))
+        .or_else(|| names.iter().copied().find(|name| simple(name).starts_with(&mangled)))
+        .map(str::to_string)
+}
+
 /// Return the bit width of an integer type, or `None` for non-integer types.
 pub fn integer_bit_width(ty: &Type) -> Option<u32> {
     let name = ty.name();
@@ -478,6 +504,42 @@ mod tests {
         let ty = Type::simple("MyClass");
         let s = llvm_type_str(&ty);
         assert!(s.starts_with("ptr"), "got: {}", s);
+    }
+
+    #[test]
+    fn is_check_resolves_imported_generic_type() {
+        let names = vec![
+            "tt.util.Array__int".to_string(),
+            "HashMap__string".to_string(),
+        ];
+        assert_eq!(
+            resolve_is_target_name("Array", &names),
+            Some("tt.util.Array__int".to_string())
+        );
+    }
+
+    #[test]
+    fn is_check_resolves_exact_and_module_qualified_names() {
+        let names = vec![
+            "tt.lang.ParseError".to_string(),
+            "Other".to_string(),
+        ];
+        assert_eq!(
+            resolve_is_target_name("ParseError", &names),
+            Some("tt.lang.ParseError".to_string())
+        );
+        assert_eq!(
+            resolve_is_target_name("Other", &names),
+            Some("Other".to_string())
+        );
+    }
+
+    #[test]
+    fn is_check_rejects_unknown_target_name() {
+        let names = vec!["Array__int".to_string()];
+        assert_eq!(resolve_is_target_name("Missing", &names), None);
+        // Only a real mangled specialization may satisfy a generic base name.
+        assert_eq!(resolve_is_target_name("Arr", &names), None);
     }
 
     #[test]

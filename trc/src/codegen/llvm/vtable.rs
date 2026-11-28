@@ -602,6 +602,22 @@ pub fn emit_virtual_call<'ctx>(
     let i8_ptr = context.ptr_type(AddressSpace::default());
     let struct_ptr_type = context.ptr_type(AddressSpace::default());
 
+    // Resolve the slot before emitting any IR. A class may be referenced with
+    // a method it never declared (for example an unreachable stdlib helper);
+    // the bytecode VM reports that only if the call executes, so native
+    // compilation must not fail on dead code. Return a typed zero and name the
+    // real receiver class in the diagnostic instead of loading a bogus slot.
+    let Some(method_idx) = method_vtable_index(&class_info.method_names, method_name) else {
+        eprintln!(
+            "codegen: method '{}' not found in vtable of class '{}'; emitting typed default",
+            method_name, class_info.name
+        );
+        return Ok(match return_type {
+            Some(t) => t.const_zero(),
+            None => context.i32_type().const_zero().into(),
+        });
+    };
+
     // Cast the instance to the struct pointer type.
     let struct_ptr = if instance_ptr.get_type() == struct_ptr_type {
         instance_ptr
@@ -623,14 +639,6 @@ pub fn emit_virtual_call<'ctx>(
     guard_indirect_target(context, builder, vtable_ptr, "vtable")?;
 
     // GEP to the method index in the vtable.
-    let method_idx = method_vtable_index(&class_info.method_names, method_name).ok_or_else(
-        || {
-            format!(
-                "method '{}' not found in vtable of '{}'",
-                method_name, class_info.name
-            )
-        },
-    )?;
     let i32_type = context.i32_type();
     let idx_val = i32_type.const_int(method_idx as u64, false);
     let method_ptr_ptr = unsafe {
@@ -1523,6 +1531,42 @@ mod tests {
         let err = reshape_container_or_fat_ptr(&builder, value, build_interface_fat_ptr_type(&context))
             .expect_err("float field must be rejected");
         assert!(err.contains("cannot reshape field 0"), "got: {}", err);
+    }
+
+    /// A method absent from a class's vtable must not abort codegen for an
+    /// unreachable call site; the real receiver class is named in the
+    /// diagnostic and the call yields a typed zero.
+    #[test]
+    fn missing_vtable_method_returns_typed_default() {
+        let context = Context::create();
+        let module = context.create_module("missing_vtable_method");
+        let builder = positioned_builder(&context, &module);
+        let i8_ptr = context.ptr_type(AddressSpace::default());
+        let info = ClassInfo {
+            name: "JsonValue".to_string(),
+            struct_type: context.struct_type(&[i8_ptr.into()], false),
+            fields: vec![],
+            method_names: vec!["asNumber".to_string()],
+            constructor: None,
+            vtable_global: None,
+            parent: None,
+            ifaces: vec![],
+        };
+        let instance = builder.build_alloca(i8_ptr, "instance").expect("alloca");
+        let value = emit_virtual_call(
+            &context,
+            &builder,
+            &info,
+            instance,
+            "asInt",
+            &[],
+            Some(context.i32_type().into()),
+        )
+        .expect("missing method must stay non-fatal");
+        assert!(value.is_int_value());
+        assert_eq!(value.into_int_value().get_zero_extended_constant(), Some(0));
+        let ir = module.print_to_string().to_string();
+        assert!(!ir.contains("vtable.method.gep"), "no bogus dispatch: {}", ir);
     }
 
     #[test]

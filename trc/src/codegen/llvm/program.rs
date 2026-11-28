@@ -52,6 +52,87 @@ impl<'ctx> LlvmBackend<'ctx> {
             .push(f.clone());
     }
 
+    /// Predeclare every class-method overload under its final LLVM symbol and
+    /// register it in `fn_overloads`. Method bodies compile in declaration
+    /// order, so a call to a later overload would otherwise bind to the first
+    /// same-named symbol and fail the arity check. Generic specializations
+    /// call this from monomorphization before their class body is compiled.
+    pub(super) fn predeclare_class_method_overloads(
+        &mut self,
+        class_decl: &ClassDecl,
+    ) -> Result<(), String> {
+        let i8_ptr = self.context.ptr_type(AddressSpace::default());
+        let mut first_arity: HashMap<String, usize> = HashMap::new();
+        for member in &class_decl.members {
+            let method = match member {
+                ClassMember::Method(m) | ClassMember::Constructor(m) => m,
+                _ => continue,
+            };
+            let base = format!("{}_{}", class_decl.name, method.name);
+            let arity = method.params.iter().filter(|p| p.name != "self").count() + 1;
+            let llvm_name = if first_arity.insert(base.clone(), arity).is_some() {
+                format!("{}__a{}", base, arity)
+            } else {
+                base.clone()
+            };
+            if self.module.get_function(&llvm_name).is_none() {
+                let mut params: Vec<inkwell::types::BasicMetadataTypeEnum<'ctx>> =
+                    vec![i8_ptr.into()];
+                for p in &method.params {
+                    if p.name != "self" {
+                        params.push(self.user_param_llvm_type(&p.typ)?.into());
+                    }
+                }
+                let fn_type = match self.sig_ret_llvm_type(method.return_type.as_ref())? {
+                    Some(ret) => ret.fn_type(&params, false),
+                    None => self.context.void_type().fn_type(&params, false),
+                };
+                self.module.add_function(&llvm_name, fn_type, None);
+            }
+            if let Some(f) = self.module.get_function(&llvm_name) {
+                self.fn_overloads.insert((base, arity), f);
+            }
+        }
+        Ok(())
+    }
+
+    /// Compile constructor overloads after the first one. `compile_class_decl`
+    /// only lowers the first constructor, leaving later declarations as
+    /// bodyless symbols that fail to link when a `new` call selects them.
+    pub(super) fn compile_remaining_constructors(
+        &mut self,
+        class_decl: &ClassDecl,
+    ) -> Result<(), String> {
+        let class_name = class_decl.name.as_str();
+        let struct_type = match self.class_infos.get(class_name) {
+            Some(info) => info.struct_type,
+            None => return Ok(()),
+        };
+        let mut seen_first = false;
+        for member in &class_decl.members {
+            let method = match member {
+                ClassMember::Constructor(m) => m,
+                _ => continue,
+            };
+            if !seen_first {
+                seen_first = true;
+                continue;
+            }
+            let base = format!("{}_{}", class_name, method.name);
+            let arity = method.params.iter().filter(|p| p.name != "self").count() + 1;
+            let already_compiled = self
+                .fn_overloads
+                .get(&(base.clone(), arity))
+                .copied()
+                .or_else(|| self.module.get_function(&format!("{}__a{}", base, arity)))
+                .is_some_and(|f| f.get_first_basic_block().is_some());
+            if !already_compiled {
+                self.compile_class_method(class_name, method, &struct_type)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Compile a non-generic top-level function.
     /// Declare a user function in the LLVM module, mangling overloads that
     /// share a name but differ in signature. Safe to call repeatedly.
@@ -112,20 +193,25 @@ impl<'ctx> LlvmBackend<'ctx> {
                 n += 1;
             }
         }
-        self.fn_decl_symbols
-            .push((fn_decl.clone(), llvm_name.clone()));
         let fn_val = if let Some(existing) = self.module.get_function(&llvm_name) {
             existing
         } else {
-            // Internal linkage keeps generated names like `exp` and `log` out
-            // of the linker's global symbol table: libm calls from the Rust
-            // runtime would otherwise resolve to these functions and recurse.
-            self.module.add_function(
-                &llvm_name,
-                fn_type,
-                Some(inkwell::module::Linkage::Internal),
-            )
+            // A declaration has no body yet; internal linkage is only legal on
+            // definitions. compile_function makes this internal once the body
+            // exists, keeping names like `exp`/`log` out of the linker's table.
+            self.module
+                .add_function(&llvm_name, fn_type, Some(inkwell::module::Linkage::External))
         };
+        // LLVM may rename the symbol (e.g. a module-level `var _facility`
+        // already owns that name). Record the actual name so later lookups find
+        // this declaration instead of creating a second, bodyless one.
+        let actual_name = fn_val
+            .get_name()
+            .to_str()
+            .unwrap_or(&llvm_name)
+            .to_string();
+        self.fn_decl_symbols
+            .push((fn_decl.clone(), actual_name.clone()));
         self.fn_overloads
             .entry((base_name.to_string(), arity))
             .or_insert(fn_val);
@@ -155,7 +241,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         } else {
             self.fn_typed.insert(typed_key, fn_val);
         }
-        self.record_fn(llvm_name.clone(), fn_val);
+        self.record_fn(actual_name, fn_val);
         if !self.functions.contains_key(base_name) {
             self.record_fn(base_name.to_string(), fn_val);
         }
@@ -177,6 +263,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         if fn_val.get_first_basic_block().is_some() {
             return Ok(fn_val);
         }
+        // Declarations start external (LLVM rejects internal declarations with
+        // no body); now that a body is about to be emitted, hide the symbol.
+        fn_val.set_linkage(inkwell::module::Linkage::Internal);
 
         // Apply release-mode optimization hints (alwaysinline + fastcc for
         // small internal functions). Titrate functions are private by
@@ -625,6 +714,26 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Pre-declare every function before class bodies compile: a module-
+        // qualified call inside a constructor (e.g. `DataFile.load`) must bind
+        // to its own module's symbol, not a same-named overload in another
+        // module that happened to register its bare name first.
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
+                }
+            }
+        }
+
         // Record each class method's return type so `infer_expr_type` can
         // resolve `obj.method()` calls on user classes (a double-returning
         // method must not be treated as int).
@@ -660,12 +769,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Publish all method overload symbols before any body compiles, so a
+        // call to a method declared later binds to its own arity.
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                if class_decl.type_params.is_empty() {
+                    self.predeclare_class_method_overloads(class_decl)?;
+                }
+            }
+        }
+
         // Second pass: compile all class declarations (build struct types, vtables, methods).
         // Generic classes compile on demand via monomorphization instead.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
                     self.compile_class_decl(class_decl)?;
+                    self.compile_remaining_constructors(class_decl)?;
                 }
             }
         }
@@ -684,26 +804,6 @@ impl<'ctx> LlvmBackend<'ctx> {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
                     self.build_interface_vtables_for_class(class_decl, &iface_decls)?;
-                }
-            }
-        }
-
-        // Pre-declare every function so forward calls resolve to the final
-        // mangled LLVM name instead of creating a bodyless stray declaration.
-        // This runs after interfaces/classes so parameter types (fat pointers,
-        // class references) are lowered consistently at declaration and call.
-        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
-            if let Declaration::Function(f) = decl {
-                if f.name != "main" && f.type_params.is_empty() {
-                    let fn_val = self.declare_user_function(f)?;
-                    let key = (
-                        module.clone(),
-                        f.name.clone(),
-                        Self::fn_type_key(
-                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
-                        ),
-                    );
-                    self.module_fn_typed.insert(key, fn_val);
                 }
             }
         }
@@ -796,6 +896,24 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Pre-declare functions before class bodies compile so module-qualified
+        // calls inside constructors bind to their own module's symbol.
+        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    let fn_val = self.declare_user_function(f)?;
+                    let key = (
+                        module.clone(),
+                        f.name.clone(),
+                        Self::fn_type_key(
+                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
+                        ),
+                    );
+                    self.module_fn_typed.insert(key, fn_val);
+                }
+            }
+        }
+
         // Record each class declaration and method return type before
         // compiling any class, so a derived class can resolve its parent's
         // methods/fields when building its vtable regardless of order.
@@ -830,32 +948,23 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
         }
 
+        // Publish all method overload symbols before any body compiles, so a
+        // call to a method declared later binds to its own arity.
+        for decl in &all_declarations {
+            if let Declaration::Class(class_decl) = decl {
+                if class_decl.type_params.is_empty() {
+                    self.predeclare_class_method_overloads(class_decl)?;
+                }
+            }
+        }
+
         // Second pass: compile all class declarations. Generic classes
         // compile on demand via monomorphization instead.
         for decl in &all_declarations {
             if let Declaration::Class(class_decl) = decl {
                 if class_decl.type_params.is_empty() {
                     self.compile_class_decl(class_decl)?;
-                }
-            }
-        }
-
-        // Pre-declare every function so forward calls resolve to the final
-        // mangled LLVM name instead of creating a bodyless stray declaration.
-        // This runs after interfaces/classes so parameter types (fat pointers,
-        // class references) are lowered consistently at declaration and call.
-        for (decl, module) in all_declarations.iter().zip(decl_modules.iter()) {
-            if let Declaration::Function(f) = decl {
-                if f.name != "main" && f.type_params.is_empty() {
-                    let fn_val = self.declare_user_function(f)?;
-                    let key = (
-                        module.clone(),
-                        f.name.clone(),
-                        Self::fn_type_key(
-                            &f.params.iter().map(|p| p.typ.clone()).collect::<Vec<_>>(),
-                        ),
-                    );
-                    self.module_fn_typed.insert(key, fn_val);
+                    self.compile_remaining_constructors(class_decl)?;
                 }
             }
         }

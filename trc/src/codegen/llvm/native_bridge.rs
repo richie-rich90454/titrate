@@ -106,9 +106,43 @@ pub fn native_name_to_c_name(name: &str) -> String {
     format!("titrate_{}", name)
 }
 
+/// Native names called directly by stdlib `.tr` modules but implemented only
+/// by the native bridge (no bytecode-VM registration). Without this table a
+/// bare call such as `Nntp_connect(...)` is treated as an unknown user function
+/// and codegen aborts with "codegen: unknown function". The runtime side of the
+/// bridge provides neutral values for these names (see
+/// `titrate_native::wrappers::stdlib_native_stub`).
+const STDLIB_BRIDGE_NATIVE_RETURNS: &[(&str, &str)] = &[
+    ("File_readText", "string"),
+    ("Nntp_connect", "long"),
+    ("Nntp_readLine", "string"),
+    ("Nntp_write", "void"),
+    ("Nntp_close", "void"),
+    ("Pop3_connect", "long"),
+    ("Pop3_readLine", "string"),
+    ("Pop3_write", "void"),
+    ("Pop3_close", "void"),
+    ("Pop3_md5Hex", "string"),
+    ("Smtp_connect", "bool"),
+    ("Smtp_authenticate", "bool"),
+    ("Smtp_send", "bool"),
+    ("Smtp_disconnect", "void"),
+    ("Telnet_connect", "long"),
+    ("Telnet_read", "string"),
+    ("Telnet_write", "void"),
+    ("Telnet_setTimeout", "void"),
+    ("Telnet_close", "void"),
+    ("XmlRpc_post", "string"),
+    ("XmlRpc_serve", "void"),
+    ("XmlRpc_stop", "void"),
+];
+
 /// Return true if `name` is a registered native function.
 pub fn is_native_function(name: &str) -> bool {
     lookup_builtin_native(name).is_some()
+        || STDLIB_BRIDGE_NATIVE_RETURNS
+            .iter()
+            .any(|(native, _)| *native == name)
 }
 
 /// True when a Titrate type name crosses the C ABI as an object reference or
@@ -845,6 +879,12 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     {
         return Type::simple(ty);
     }
+    if let Some((_, ty)) = STDLIB_BRIDGE_NATIVE_RETURNS
+        .iter()
+        .find(|(name, _)| *name == native_name)
+    {
+        return Type::simple(ty);
+    }
     // JsonValue constructors return runtime handles; their Titrate wrappers
     // (JsonValue.ofStr etc.) build real class instances.
     if native_name.starts_with("JsonValue_of") {
@@ -1023,5 +1063,43 @@ mod tests {
         // Process id appeared in both long and int lists.
         assert_eq!(infer_native_return_type("Process_id").name(), "long");
         assert_eq!(infer_native_return_type("Hash_crc32").name(), "string");
+    }
+
+    /// The stdlib `.tr` modules call these names directly as bare identifiers.
+    /// They have no bytecode-VM registration, so without the bridge table
+    /// codegen aborts with "codegen: unknown function" before any code runs.
+    #[test]
+    fn module_wrapper_resolves_to_native_symbol() {
+        use crate::ast::Span;
+        for (name, ty) in STDLIB_BRIDGE_NATIVE_RETURNS {
+            assert!(
+                is_native_function(name),
+                "{} must be recognized as a native call",
+                name
+            );
+            assert_eq!(
+                infer_native_return_type(name).name(),
+                *ty,
+                "{} must unmarshal with its declared Titrate type",
+                name
+            );
+            // A bare call (`Nntp_connect(host, port, tls)`) is how the modules
+            // actually reach the native; keep that path resolvable too.
+            let callee = Expr::Identifier((*name).to_string(), Span::unknown());
+            assert_eq!(
+                try_native_call_name(&callee).as_deref(),
+                Some(*name),
+                "{} must resolve through the bare-identifier call path",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn stdlib_bridge_native_table_has_no_duplicate_names() {
+        let mut seen = HashSet::new();
+        for (name, _) in STDLIB_BRIDGE_NATIVE_RETURNS {
+            assert!(seen.insert(*name), "duplicate stdlib bridge native: {}", name);
+        }
     }
 }

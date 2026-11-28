@@ -227,6 +227,33 @@ impl<'ctx> LlvmBackend<'ctx> {
             return Ok(v);
         }
 
+        // A generic null return is lowered to integer zero (e.g. Result.unwrap()
+        // on Err), while the `null` literal is a pointer. Compare the integer
+        // to zero instead of mixing an i32 tag with a ptr operand.
+        if matches!(op, Operator::Eq | Operator::Ne) {
+            let mixed = if lv.is_int_value() && rv.is_pointer_value() {
+                Some((lv.into_int_value(), rv.into_pointer_value()))
+            } else if lv.is_pointer_value() && rv.is_int_value() {
+                Some((rv.into_int_value(), lv.into_pointer_value()))
+            } else {
+                None
+            };
+            if let Some((int_val, ptr_val)) = mixed {
+                if ptr_val.is_null() {
+                    let pred = match op {
+                        Operator::Eq => inkwell::IntPredicate::EQ,
+                        _ => inkwell::IntPredicate::NE,
+                    };
+                    let zero = int_val.get_type().const_zero();
+                    return Ok(self
+                        .builder
+                        .build_int_compare(pred, int_val, zero, "null.cmp")
+                        .map_err(|e| format!("icmp null failed: {:?}", e))?
+                        .into());
+                }
+            }
+        }
+
         // Coerce operands to the same type if they differ (e.g., i32 var + i64 literal).
         let (lv, rv) = self.coerce_binary_operands(lv, rv)?;
 
@@ -446,6 +473,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ast::{Literal, Span};
     use inkwell::context::Context;
     use inkwell::AddressSpace;
 
@@ -627,6 +655,25 @@ mod tests {
             )
             .expect_err("mixed float types must be rejected");
         assert!(err.contains("matching float types"), "{}", err);
+    }
+
+    #[test]
+    fn result_null_comparison_coerces_operand_kinds() {
+        let context = Context::create();
+        let mut backend = backend_with_named_function(&context);
+        let int = Expr::Literal(Literal::Int(0), Span::unknown());
+        let null = Expr::Literal(Literal::Null, Span::unknown());
+
+        let eq = backend
+            .compile_binary(&int, &Operator::Eq, &null)
+            .expect("i32 tag vs null pointer must compare, not fail coercion");
+        assert!(eq.is_int_value(), "comparison must produce i1");
+        assert_eq!(eq.into_int_value().get_type(), context.bool_type());
+
+        let ne = backend
+            .compile_binary(&int, &Operator::Ne, &null)
+            .expect("i32 tag != null pointer must compare, not fail coercion");
+        assert!(ne.is_int_value(), "comparison must produce i1");
     }
 
     #[test]

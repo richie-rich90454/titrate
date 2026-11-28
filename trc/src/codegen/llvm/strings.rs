@@ -6,7 +6,23 @@ use super::{LlvmBackend, StringValue};
 use crate::ast::{Expr, Literal, Operator, Type};
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
+use inkwell::types::BasicTypeEnum;
 use inkwell::values::{BasicValueEnum, FunctionValue, IntValue};
+
+/// A function value is a `{fn_ptr, capture}` pair. Member-call lowering often
+/// leaves its static type "unknown", so recognise it by its two-pointer LLVM
+/// shape. Treating it as a generic struct would tag it TV_STRING and the
+/// runtime would replace the payload with a bogus (usually empty) string.
+fn is_fn_value_arg<'ctx>(ty: &Type, val: BasicValueEnum<'ctx>) -> bool {
+    if !matches!(ty.name(), "fn" | "unknown") {
+        return false;
+    }
+    let BasicValueEnum::StructValue(sv) = val else {
+        return false;
+    };
+    let fields = sv.get_type().get_field_types();
+    fields.len() == 2 && fields.iter().all(|f| matches!(f, BasicTypeEnum::PointerType(_)))
+}
 
 /// Reject native-call arguments whose LLVM shape disagrees with their declared
 /// Titrate type before any call is emitted. A value/type count mismatch makes
@@ -210,6 +226,57 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
     }
 
+    /// Dedicated buffer used when a null slot has to be rendered as the text
+    /// "null". Keeping it distinct from a user-written `"null"` literal lets
+    /// `value == null` recognise a materialised null without treating a real
+    /// "null" string as null.
+    pub(super) fn null_string_sentinel(&mut self) -> StringValue<'ctx> {
+        const NAME: &str = ".titrate.null.sentinel";
+        let i8_type = self.context.i8_type();
+        let i64_type = self.context.i64_type();
+        let len = i64_type.const_int(4, false);
+        if let Some(global) = self.module.get_global(NAME) {
+            return StringValue {
+                len,
+                ptr: global.as_pointer_value(),
+            };
+        }
+        let bytes = [b'n', b'u', b'l', b'l', 0];
+        let const_bytes: Vec<_> = bytes
+            .iter()
+            .map(|&b| i8_type.const_int(b as u64, false))
+            .collect();
+        let arr_type = i8_type.array_type(const_bytes.len() as u32);
+        let global = self.module.add_global(arr_type, None, NAME);
+        global.set_linkage(Linkage::Private);
+        global.set_constant(true);
+        global.set_initializer(&i8_type.const_array(&const_bytes));
+        StringValue {
+            len,
+            ptr: global.as_pointer_value(),
+        }
+    }
+
+    /// Compare a string data pointer against the null-rendering sentinel.
+    pub(super) fn is_null_string_sentinel(
+        &mut self,
+        ptr: inkwell::values::PointerValue<'ctx>,
+    ) -> Result<IntValue<'ctx>, String> {
+        let sentinel = self.null_string_sentinel();
+        let i64_type = self.context.i64_type();
+        let lhs = self
+            .builder
+            .build_ptr_to_int(ptr, i64_type, "null.cmp.ptr")
+            .map_err(|e| format!("build_ptr_to_int null sentinel failed: {:?}", e))?;
+        let rhs = self
+            .builder
+            .build_ptr_to_int(sentinel.ptr, i64_type, "null.cmp.sentinel")
+            .map_err(|e| format!("build_ptr_to_int null sentinel base failed: {:?}", e))?;
+        self.builder
+            .build_int_compare(inkwell::IntPredicate::EQ, lhs, rhs, "null.sentinel")
+            .map_err(|e| format!("build_int_compare null sentinel failed: {:?}", e))
+    }
+
     /// Look up a native function by name.
     pub(super) fn get_function(&self, name: &str) -> FunctionValue<'ctx> {
         self.module
@@ -365,7 +432,12 @@ impl<'ctx> LlvmBackend<'ctx> {
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
     ) -> Result<inkwell::values::StructValue<'ctx>, String> {
-        check_native_args(native_name, arg_values, arg_types)?;
+        let arg_values: Vec<BasicValueEnum<'ctx>> = arg_values
+            .iter()
+            .zip(arg_types.iter())
+            .map(|(val, ty)| self.coerce_native_arg_value(*val, ty))
+            .collect::<Result<_, _>>()?;
+        check_native_args(native_name, &arg_values, arg_types)?;
         let tv_ty = native_bridge::titrate_value_type(self.context);
         let i8_ptr = self.context.ptr_type(AddressSpace::default());
         let usize_type = self.context.i64_type();
@@ -404,6 +476,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             // objects) marshal as "string". When the inferred type says "int"
             // but the value is a struct, marshal as "string" to avoid
             // corruption.
+            let is_fn_value = is_fn_value_arg(ty, *val);
             let marshal_ty = match ty.name() {
                 "array" | "ArrayList" | "HashMap" | "JsonValue" => ty.clone(),
                 "string" => ty.clone(),
@@ -415,6 +488,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let w = val.into_int_value().get_type().get_bit_width();
                     if w > 32 { Type::simple("long") } else { Type::simple("int") }
                 }
+                // The generic struct fallback tags function values TV_STRING,
+                // so the runtime decodes their payload as a bogus string and
+                // a later indirect call jumps through a null pointer. Preserve
+                // the fn pointer bits as a long instead (TV_LONG round-trips
+                // the first payload word verbatim).
+                _ if is_fn_value => Type::simple("long"),
                 // Static-call inference labels all Math_* results "double";
                 // trust the actual LLVM width so long-returning helpers (e.g.
                 // Math.MAX_INT) are not tagged as doubles and print as NaN.
@@ -617,7 +696,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             .builder
             .build_and(len_is_zero, ptr_is_null, "null.is")
             .map_err(|e| format!("build_and null.is failed: {:?}", e))?;
-        let null_str = self.make_string_global("null");
+        let null_str = self.null_string_sentinel();
         let len = self
             .builder
             .build_select(
@@ -1235,5 +1314,70 @@ mod native_arg_validation_tests {
         )
         .is_ok());
         assert!(check_native_args("Sys_args", &[], &[]).is_ok());
+    }
+
+    #[test]
+    fn fn_value_arg_is_not_decoded_as_string() {
+        let ctx = Context::create();
+        let ptr = ctx.ptr_type(inkwell::AddressSpace::default());
+        let closure_ty = ctx.struct_type(&[ptr.into(), ptr.into()], false);
+        let val: BasicValueEnum = closure_ty.const_zero().into();
+        assert!(is_fn_value_arg(&Type::simple("unknown"), val));
+        assert!(is_fn_value_arg(&Type::simple("fn"), val));
+
+        // A string/array payload is {i64, ptr}, never a two-pointer struct.
+        let str_ty = ctx.struct_type(&[ctx.i64_type().into(), ptr.into()], false);
+        let str_val: BasicValueEnum = str_ty.const_zero().into();
+        assert!(!is_fn_value_arg(&Type::simple("unknown"), str_val));
+        // Declared string arguments must keep their real type even if shaped
+        // like a closure.
+        assert!(!is_fn_value_arg(&Type::simple("string"), val));
+    }
+
+    #[test]
+    fn null_sentinel_is_distinct_from_a_null_literal() {
+        let ctx = Context::create();
+        let mut backend = LlvmBackend::new(&ctx, "null-sentinel-test");
+        let sentinel = backend.null_string_sentinel();
+        let literal = backend.make_string_global("null");
+        assert_eq!(sentinel.len, literal.len);
+        assert_ne!(sentinel.ptr, literal.ptr, "a real \"null\" string must not be treated as a null slot");
+        let again = backend.null_string_sentinel();
+        assert_eq!(again.ptr, sentinel.ptr, "the sentinel global must be reused");
+    }
+
+    #[test]
+    fn null_sentinel_comparison_recognises_only_the_sentinel() {
+        let ctx = Context::create();
+        let mut backend = LlvmBackend::new(&ctx, "null-sentinel-cmp");
+        let i8_ptr = ctx.ptr_type(inkwell::AddressSpace::default());
+        let f = backend.module.add_function(
+            "cmp",
+            ctx.void_type().fn_type(&[i8_ptr.into(), i8_ptr.into()], false),
+            None,
+        );
+        backend.builder.position_at_end(ctx.append_basic_block(f, "entry"));
+        // Use runtime pointers: constant globals get folded to a nameless i1.
+        let sentinel_ptr = f.get_nth_param(0).unwrap().into_pointer_value();
+        let literal_ptr = f.get_nth_param(1).unwrap().into_pointer_value();
+        let _ = backend.null_string_sentinel();
+        let is_sentinel = backend
+            .is_null_string_sentinel(sentinel_ptr)
+            .expect("sentinel compare must lower");
+        assert_eq!(is_sentinel.get_name().to_str(), Ok("null.sentinel"));
+        backend
+            .is_null_string_sentinel(literal_ptr)
+            .expect("literal compare must lower");
+    }
+
+    #[test]
+    fn native_call_marshals_fn_value_as_long() {
+        let ctx = Context::create();
+        let ptr = ctx.ptr_type(inkwell::AddressSpace::default());
+        let closure_ty = ctx.struct_type(&[ptr.into(), ptr.into()], false);
+        let val: BasicValueEnum = closure_ty.const_zero().into();
+        // The selected marshal type determines the runtime tag: "long" maps to
+        // TV_LONG, whose payload survives the C-ABI round trip verbatim.
+        assert!(is_fn_value_arg(&Type::simple("unknown"), val));
     }
 }

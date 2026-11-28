@@ -275,7 +275,9 @@ impl<'ctx> LlvmBackend<'ctx> {
         use inkwell::FloatPredicate::*;
         match op {
             Operator::Eq => Some(OEQ),
-            Operator::Ne => Some(ONE),
+            // `NaN != x` is true in the VM. `ONE` would be false because it
+            // requires an ordered pair, so use the unordered predicate.
+            Operator::Ne => Some(UNE),
             Operator::Lt => Some(OLT),
             Operator::Gt => Some(OGT),
             Operator::Le => Some(OLE),
@@ -555,6 +557,19 @@ mod tests {
         let entry = context.append_basic_block(f, "entry");
         backend.builder.position_at_end(entry);
         backend
+    }
+
+    #[test]
+    fn float_ne_predicate_is_unordered() {
+        // A NaN is not equal to anything, including itself (`x != x` must be
+        // true). `ONE` suppresses that result because NaN compares unordered.
+        let ne = LlvmBackend::float_compare_predicate(&Operator::Ne)
+            .expect("Ne is a float comparison");
+        assert_eq!(ne, inkwell::FloatPredicate::UNE);
+        // Ordered equality must stay: `NaN == NaN` is false in the VM.
+        let eq = LlvmBackend::float_compare_predicate(&Operator::Eq)
+            .expect("Eq is a float comparison");
+        assert_eq!(eq, inkwell::FloatPredicate::OEQ);
     }
 
     #[test]

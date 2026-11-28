@@ -142,7 +142,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
                 let pred = match op {
                     Operator::Eq => inkwell::FloatPredicate::OEQ,
-                    Operator::Ne => inkwell::FloatPredicate::ONE,
+                    Operator::Ne => inkwell::FloatPredicate::UNE,
                     Operator::Lt => inkwell::FloatPredicate::OLT,
                     Operator::Gt => inkwell::FloatPredicate::OGT,
                     Operator::Le => inkwell::FloatPredicate::OLE,
@@ -177,7 +177,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 };
                 let pred = match op {
                     Operator::Eq => inkwell::FloatPredicate::OEQ,
-                    Operator::Ne => inkwell::FloatPredicate::ONE,
+                    Operator::Ne => inkwell::FloatPredicate::UNE,
                     Operator::Lt => inkwell::FloatPredicate::OGT,
                     Operator::Gt => inkwell::FloatPredicate::OLT,
                     Operator::Le => inkwell::FloatPredicate::OGE,
@@ -397,7 +397,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     };
                     let fpred = match op {
                         Operator::Eq => inkwell::FloatPredicate::OEQ,
-                        Operator::Ne => inkwell::FloatPredicate::ONE,
+                        Operator::Ne => inkwell::FloatPredicate::UNE,
                         Operator::Lt => inkwell::FloatPredicate::OLT,
                         Operator::Gt => inkwell::FloatPredicate::OGT,
                         Operator::Le => inkwell::FloatPredicate::OLE,
@@ -410,7 +410,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                     } else {
                         match op {
                             Operator::Eq => inkwell::FloatPredicate::OEQ,
-                            Operator::Ne => inkwell::FloatPredicate::ONE,
+                            Operator::Ne => inkwell::FloatPredicate::UNE,
                             Operator::Lt => inkwell::FloatPredicate::OGT,
                             Operator::Gt => inkwell::FloatPredicate::OLT,
                             Operator::Le => inkwell::FloatPredicate::OGE,
@@ -510,7 +510,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                             };
                             let fpred = match op {
                                 Operator::Eq => inkwell::FloatPredicate::OEQ,
-                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Ne => inkwell::FloatPredicate::UNE,
                                 Operator::Lt => inkwell::FloatPredicate::OLT,
                                 Operator::Gt => inkwell::FloatPredicate::OGT,
                                 Operator::Le => inkwell::FloatPredicate::OLE,
@@ -546,7 +546,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 .map_err(|e| format!("sitofp: {:?}", e))?;
                             let fpred = match op {
                                 Operator::Eq => inkwell::FloatPredicate::OEQ,
-                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Ne => inkwell::FloatPredicate::UNE,
                                 Operator::Lt => inkwell::FloatPredicate::OGT,
                                 Operator::Gt => inkwell::FloatPredicate::OLT,
                                 Operator::Le => inkwell::FloatPredicate::OGE,

@@ -9,6 +9,24 @@ use inkwell::AddressSpace;
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Resolve a possibly module-qualified class name (`Module.Inner` /
+    /// `Module::Inner`) to the bare name classes are registered under.
+    /// Source references may be qualified while declarations are not; exact
+    /// keys win so a genuinely qualified registered name still resolves.
+    pub(super) fn resolve_class_name(&self, name: &str) -> String {
+        if self.class_infos.contains_key(name) || self.class_decls.contains_key(name) {
+            return name.to_string();
+        }
+        let mut rest = name;
+        while let Some((_, suffix)) = rest.split_once('.').or_else(|| rest.split_once("::")) {
+            rest = suffix;
+            if self.class_infos.contains_key(rest) || self.class_decls.contains_key(rest) {
+                return rest.to_string();
+            }
+        }
+        name.to_string()
+    }
+
     /// Compile a `new ClassName(args)` expression.
     pub(super) fn compile_new(
         &mut self,
@@ -72,7 +90,8 @@ impl<'ctx> LlvmBackend<'ctx> {
             // Monomorphize generic instantiations (e.g. Box<int>) so the
             // rest of this path works with the specialized class.
             let effective = self.resolve_mono_class(type_name)?;
-            let class_name = effective.as_str();
+            let class_name = self.resolve_class_name(&effective);
+            let class_name = class_name.as_str();
             // A `new B(...)` in a method of class A can be lowered before B's
             // declaration pass (imports compile in load order). B's ClassInfo
             // is then only a skeleton with no vtable or constructor, so this
@@ -93,7 +112,12 @@ impl<'ctx> LlvmBackend<'ctx> {
             }
             // Try class_infos first.
             if let Some(class_info) = self.class_infos.get(class_name).cloned() {
-                let ctor = class_info.constructor;
+                // Pick the constructor whose arity matches this `new`; the
+                // single ClassInfo slot holds only the first declaration and
+                // would otherwise bind a wrong-arity overload.
+                let ctor = self
+                    .resolve_user_fn(&format!("{}_new", class_name), args.len() + 1)
+                    .or(class_info.constructor);
                 let arg_vals = match ctor {
                     Some(ctor_fn) => {
                         let ctor_params = self.method_decl_params(class_name, "init");
@@ -174,8 +198,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Some(obj_ptr) = obj_ptr_opt {
             let obj_type = self.infer_expr_type(object);
             let effective = self.resolve_mono_class(&obj_type)?;
-            let class_name = effective.as_str();
-            if let Some(class_info) = self.class_infos.get(class_name).cloned() {
+            let class_name = self.resolve_class_name(&effective);
+            if let Some(class_info) = self.class_infos.get(&class_name).cloned() {
                 return emit_field_access(self.context, &self.builder, &class_info, obj_ptr, field);
             }
             // Unknown classes are rejected by the analyzer, so reaching here
@@ -251,10 +275,26 @@ impl<'ctx> LlvmBackend<'ctx> {
             let matches = self.infer_expr_type(obj).name() == type_name;
             return Ok(i1_ty.const_int(if matches { 1 } else { 0 }, false).into());
         }
-        // Check if it's a class.
-        let class_name = type_name;
+        // Enum values are heap pointers, not classes with vtables. The bare
+        // `is Enum` name must resolve against the enum declarations.
+        if llvm_types::resolve_is_target_name(type_name, self.enum_infos.keys()).is_some() {
+            let obj_val = self.compile_expr(obj)?;
+            if !obj_val.is_pointer_value() {
+                return Ok(self.context.bool_type().const_int(1, false).into());
+            }
+            let null = self.context.ptr_type(AddressSpace::default()).const_null();
+            return self
+                .builder
+                .build_int_compare(inkwell::IntPredicate::NE, obj_val.into_pointer_value(), null, "is.enum")
+                .map_err(|e| format!("build_int_compare is.enum failed: {:?}", e))
+                .map(BasicValueEnum::from);
+        }
+        // Check if it's a class. Generic classes are registered under mangled
+        // names, so resolve the bare source name against compiled names first.
+        let class_name = llvm_types::resolve_is_target_name(type_name, self.class_infos.keys())
+            .unwrap_or_else(|| self.resolve_class_name(type_name));
         let class_info =
-            self.class_infos.get(class_name).cloned().ok_or_else(|| {
+            self.class_infos.get(&class_name).cloned().ok_or_else(|| {
                 format!("codegen: type '{}' not found for 'is' check", class_name)
             })?;
         let obj_val = self.compile_expr(obj)?;
@@ -349,5 +389,137 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         // As a last resort, if both types are the same, just return the value.
         Ok(obj_val)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::vtable::ClassInfo;
+    use crate::ast::{Declaration, Program};
+
+    fn parse_program(source: &str) -> Program {
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        crate::parser::parse(tokens).expect("parse")
+    }
+
+    fn backend_with_inner<'ctx>(
+        context: &'ctx inkwell::context::Context,
+        program: &Program,
+    ) -> LlvmBackend<'ctx> {
+        let mut backend = LlvmBackend::new(context, "nested_class");
+        backend.declare_natives();
+        for decl in &program.declarations {
+            if let Declaration::Class(c) = decl {
+                backend.class_decls.insert(c.name.clone(), c.clone());
+                backend.register_class_skeleton(c).expect("skeleton");
+                backend.compile_class_decl(c).expect("class decl");
+            }
+        }
+        backend
+    }
+
+    #[test]
+    fn nested_class_new_resolves_qualified_name() {
+        let source = r#"
+            public class Inner {
+                public int value;
+                public fn init(v: int) { this.value = v; }
+            }
+            public fn main(): void {
+                let x = new Container.Inner(7);
+            }
+        "#;
+        let program = parse_program(source);
+        let context = inkwell::context::Context::create();
+        let mut backend = backend_with_inner(&context, &program);
+        let main = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("main");
+        backend.compile_main(main).expect("qualified new must compile");
+        assert!(
+            backend.module.print_to_string().to_string().contains("@Inner_new("),
+            "qualified new must call the bare class constructor"
+        );
+    }
+
+    #[test]
+    fn nested_class_member_access_resolves() {
+        let source = r#"
+            public class Inner {
+                public int value;
+                public fn init(v: int) { this.value = v; }
+            }
+            public fn main(): void {
+                let x: Container.Inner = new Inner(3);
+                let v: int = x.value;
+            }
+        "#;
+        let program = parse_program(source);
+        let context = inkwell::context::Context::create();
+        let mut backend = backend_with_inner(&context, &program);
+        let main = program
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("main");
+        backend
+            .compile_main(main)
+            .expect("member access on a qualified class must compile");
+        assert!(
+            backend.module.print_to_string().to_string().contains("getelementptr"),
+            "field access must emit a GEP into the resolved class struct"
+        );
+    }
+
+    #[test]
+    fn is_check_resolves_enum_and_generic_types() {
+        let source = r#"
+            enum ParseError { Syntax, Missing }
+        "#;
+        let program = parse_program(source);
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "is_check");
+        backend.declare_natives();
+        for decl in &program.declarations {
+            if let Declaration::Enum(e) = decl {
+                let info = super::super::enum_codegen::compile_enum_decl(&context, &backend.module, e)
+                    .expect("enum decl");
+                backend.enum_infos.insert(e.name.clone(), info);
+            }
+        }
+        backend.class_infos.insert(
+            "Array__int".to_string(),
+            ClassInfo {
+                name: "Array__int".to_string(),
+                struct_type: context.struct_type(&[], false),
+                fields: Vec::new(),
+                method_names: Vec::new(),
+                constructor: None,
+                vtable_global: None,
+                parent: None,
+                ifaces: Vec::new(),
+            },
+        );
+
+        let probe_ty = context.void_type().fn_type(&[], false);
+        let probe = backend.module.add_function("is_probe", probe_ty, None);
+        backend.builder.position_at_end(context.append_basic_block(probe, "entry"));
+        let null = crate::ast::Expr::Literal(crate::ast::Literal::Null, crate::ast::Span::unknown());
+
+        backend
+            .compile_is(&null, &crate::ast::Type::simple("ParseError"))
+            .expect("bare enum name must resolve against enum_infos");
+        backend
+            .compile_is(&null, &crate::ast::Type::simple("Array"))
+            .expect("bare generic name must resolve against the mangled class");
     }
 }

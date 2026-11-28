@@ -109,14 +109,20 @@ unsafe fn string_at(arr: *const TitrateArray, index: i64) -> TitrateString {
         };
     }
     let s = unsafe { elem.payload.string };
-    if !valid_abi_slice(s.ptr, s.len) || s.len == 0 {
+    if !valid_abi_slice(s.ptr, s.len) {
         return TitrateString {
             len: 0,
             ptr: std::ptr::null_mut(),
         };
     }
+    // An empty string still needs a non-null buffer: {0, null} is the sentinel
+    // for null/out-of-bounds and would otherwise render as "null".
+    let bytes = if s.len > 0 {
+        unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) }
+    } else {
+        &[]
+    };
     // Copy the string data into a new heap buffer.
-    let bytes = unsafe { std::slice::from_raw_parts(s.ptr, s.len as usize) };
     let mut buf: Vec<u8> = Vec::with_capacity(HEADER_SIZE + bytes.len());
     buf.resize(HEADER_SIZE, 0);
     buf.extend_from_slice(bytes);
@@ -347,6 +353,38 @@ mod tests {
         );
         unsafe { super::super::print::titrate_free(out.ptr) };
         std::mem::forget(buf);
+    }
+
+    #[test]
+    fn get_string_empty_element_is_not_null_sentinel() {
+        let mut arr = TitrateArray {
+            len: 0,
+            data: std::ptr::null_mut(),
+        };
+        assert_eq!(
+            unsafe { titrate_array_push_string(&mut arr, 0, std::ptr::null()) },
+            0
+        );
+        let mut out = TitrateString {
+            len: -1,
+            ptr: std::ptr::null_mut(),
+        };
+        unsafe { titrate_array_get_string(&mut arr, 0, &mut out) };
+        assert_eq!(out.len, 0);
+        assert!(
+            !out.ptr.is_null(),
+            "empty string element must be distinguishable from null"
+        );
+        unsafe { super::super::print::titrate_free(out.ptr) };
+
+        // Out-of-bounds elements still return the {0, null} sentinel.
+        let mut oob = TitrateString {
+            len: -1,
+            ptr: std::ptr::null_mut(),
+        };
+        unsafe { titrate_array_get_string(&mut arr, 1, &mut oob) };
+        assert_eq!(oob.len, 0);
+        assert!(oob.ptr.is_null());
     }
 }
 

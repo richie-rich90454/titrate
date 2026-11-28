@@ -7,13 +7,19 @@ use inkwell::types::BasicTypeEnum;
 use inkwell::values::BasicValueEnum;
 
 impl<'ctx> LlvmBackend<'ctx> {
-    /// String structs are `{ i64, ptr }`. A narrower length field (for example
-    /// an enum's `{ i32, ptr }`) would be handed to `memcmp` where an i64 is
-    /// expected and trip an LLVM signature assertion, so reject it here.
-    fn require_i64_string_len(&self, val: &BasicValueEnum<'ctx>, side: &str) -> Result<(), String> {
+    /// String structs are `{ int, ptr }`; a length field that is not an int
+    /// cannot be used for any comparison. When the field is handed to
+    /// `memcmp(i8*, i8*, i64)`, it must specifically be i64 — a narrower field
+    /// (e.g. an enum's `{ i32, ptr }`) would trip an LLVM signature assertion.
+    fn require_string_len_field(
+        &self,
+        val: &BasicValueEnum<'ctx>,
+        side: &str,
+        require_i64: bool,
+    ) -> Result<(), String> {
         if let BasicValueEnum::StructValue(sv) = val {
             if let Some(BasicTypeEnum::IntType(it)) = sv.get_type().get_field_type_at_index(0) {
-                if it == self.context.i64_type() {
+                if !require_i64 || it == self.context.i64_type() {
                     return Ok(());
                 }
                 return Err(format!(
@@ -56,11 +62,14 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     pub(super) fn compile_binary_str_cmp(&mut self, op: &Operator, lv: BasicValueEnum<'ctx>, rv: BasicValueEnum<'ctx>, is_str_cmp: bool) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if is_str_cmp {
+            // Only the memcmp path below needs an i64 length. A `{ i32, ptr }`
+            // enum payload compared to `null` or an integer uses field 0/1
+            // directly, so a narrow int field is valid here.
             if lv.is_struct_value() {
-                self.require_i64_string_len(&lv, "left")?;
+                self.require_string_len_field(&lv, "left", false)?;
             }
             if rv.is_struct_value() {
-                self.require_i64_string_len(&rv, "right")?;
+                self.require_string_len_field(&rv, "right", false)?;
             }
             // Mixed struct vs non-struct: extract length from struct and compare
             if (lv.is_struct_value() && !rv.is_struct_value())
@@ -126,7 +135,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         };
                         let fpred = match op {
                             Operator::Eq => inkwell::FloatPredicate::OEQ,
-                            Operator::Ne => inkwell::FloatPredicate::ONE,
+                            Operator::Ne => inkwell::FloatPredicate::UNE,
                             Operator::Lt => inkwell::FloatPredicate::OLT,
                             Operator::Gt => inkwell::FloatPredicate::OGT,
                             Operator::Le => inkwell::FloatPredicate::OLE,
@@ -143,7 +152,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         } else {
                             match op {
                                 Operator::Eq => inkwell::FloatPredicate::OEQ,
-                                Operator::Ne => inkwell::FloatPredicate::ONE,
+                                Operator::Ne => inkwell::FloatPredicate::UNE,
                                 Operator::Lt => inkwell::FloatPredicate::OGT,
                                 Operator::Gt => inkwell::FloatPredicate::OLT,
                                 Operator::Le => inkwell::FloatPredicate::OGE,
@@ -173,11 +182,34 @@ impl<'ctx> LlvmBackend<'ctx> {
                         } else {
                             (other_val.into_pointer_value(), data_ptr)
                         };
-                        return Ok(Some(self
+                        let mut cmp = self
                             .builder
                             .build_int_compare(pred, lp, rp, "cmp")
-                            .map_err(|e| format!("icmp: {:?}", e))?
-                            .into()));
+                            .map_err(|e| format!("icmp: {:?}", e))?;
+                        // A null slot degraded to a string renders through the
+                        // dedicated "null" buffer. It must still compare equal
+                        // to `null`; a user-written "null" literal uses a
+                        // different global and is unaffected.
+                        // Only a comparison against the null pointer cares
+                        // about the sentinel; other pointers (class handles)
+                        // must keep their ordinary pointer equality result.
+                        if other_val.into_pointer_value().is_null() {
+                            let sentinel = self.is_null_string_sentinel(data_ptr)?;
+                            cmp = if *op == Operator::Eq {
+                                self.builder
+                                    .build_or(cmp, sentinel, "null.eq")
+                                    .map_err(|e| format!("or: {:?}", e))?
+                            } else {
+                                let not_sentinel = self
+                                    .builder
+                                    .build_not(sentinel, "null.not")
+                                    .map_err(|e| format!("not: {:?}", e))?;
+                                self.builder
+                                    .build_and(cmp, not_sentinel, "null.ne")
+                                    .map_err(|e| format!("and: {:?}", e))?
+                            };
+                        }
+                        return Ok(Some(cmp.into()));
                     }
                 }
             }
@@ -186,6 +218,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 && self.is_string_struct(&lv)
                 && self.is_string_struct(&rv)
             {
+                // Both operands go through memcmp(i8*, i8*, i64); only here
+                // must the length field be exactly i64.
+                self.require_string_len_field(&lv, "left", true)?;
+                self.require_string_len_field(&rv, "right", true)?;
                 let ls = lv.into_struct_value();
                 let rs = rv.into_struct_value();
                 let l_len = self
@@ -431,7 +467,7 @@ impl<'ctx> LlvmBackend<'ctx> {
             };
             let fpred = |o: &Operator| match o {
                 Operator::Eq => inkwell::FloatPredicate::OEQ,
-                Operator::Ne => inkwell::FloatPredicate::ONE,
+                Operator::Ne => inkwell::FloatPredicate::UNE,
                 Operator::Lt => inkwell::FloatPredicate::OLT,
                 Operator::Gt => inkwell::FloatPredicate::OGT,
                 Operator::Le => inkwell::FloatPredicate::OLE,
@@ -728,16 +764,32 @@ mod tests {
     }
 
     #[test]
-    fn narrow_len_struct_vs_int_is_rejected_by_str_cmp() {
+    fn string_len_struct_accepts_i32_field() {
         let context = Context::create();
         let mut backend = backend_with_block(&context);
-        let left = boxed(&context, context.i16_type().into());
-        let right: BasicValueEnum = context.i16_type().const_int(1, false).into();
+        let left = boxed(&context, context.i32_type().into());
+        let right: BasicValueEnum = context.i32_type().const_int(1, false).into();
 
-        let err = backend
+        let result = backend
             .compile_binary_str_cmp(&Operator::Eq, left, right, true)
-            .expect_err("an i16 length field must not reach string comparison IR");
-        assert!(err.contains("i64"), "{}", err);
+            .expect("an i32 tag field is valid when memcmp is not involved");
+        assert!(result.expect("comparison must be lowered").is_int_value());
+    }
+
+    #[test]
+    fn small_struct_vs_null_skips_i64_len_check() {
+        let context = Context::create();
+        let mut backend = backend_with_block(&context);
+        let left = boxed(&context, context.i32_type().into());
+        let null: BasicValueEnum = context
+            .ptr_type(AddressSpace::default())
+            .const_null()
+            .into();
+
+        let result = backend
+            .compile_binary_str_cmp(&Operator::Eq, left, null, true)
+            .expect("a {i32, ptr} result compared to null must not be rejected");
+        assert!(result.expect("comparison must be lowered").is_int_value());
     }
 
     #[test]

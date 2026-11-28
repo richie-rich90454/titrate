@@ -174,6 +174,77 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(result)
     }
 
+    /// Store a container mutator's result back into a field receiver. The
+    /// generic specialization is registered under a mangled class name, while
+    /// the receiver's inferred type still carries the source name; point the
+    /// lookup at the compiled class for the duration of the store.
+    fn store_back_member_container(
+        &mut self,
+        receiver: &Expr,
+        result: BasicValueEnum<'ctx>,
+    ) -> Result<(), String> {
+        if let Expr::MemberAccess(base, _, _) = receiver {
+            if let Expr::Identifier(name, _) = base.as_ref() {
+                let original = self.locals.get(name).cloned();
+                if let Some(local) = &original {
+                    if let Some(full) = &local.full_type {
+                        if let Ok(mangled) = self.resolve_mono_class(full) {
+                            if self.class_infos.contains_key(&mangled) && mangled != full.name() {
+                                let mut patched = local.clone();
+                                patched.full_type = Some(Type::simple(&mangled));
+                                patched.titrate_type = Some(mangled);
+                                self.locals.insert(name.clone(), patched);
+                                let stored = self.store_back_container(receiver, result);
+                                self.locals.insert(name.clone(), local.clone());
+                                return stored;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        self.store_back_container(receiver, result)
+    }
+
+    /// Lower `ArrayList.add(index, value)` as an insert. The native
+    /// `ArrayList_add` is append-only and treats its second argument as the
+    /// element, so passing the index there silently stores the index instead
+    /// of the value (ChainMap.push appended `0` and later crashed).
+    fn compile_arraylist_insert(
+        &mut self,
+        obj: &Expr,
+        index: &Expr,
+        value: &Expr,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let obj_val = self.compile_expr(obj)?;
+        let obj_ty = self.infer_expr_type(obj);
+        let idx_val = self.compile_expr(index)?;
+        let idx_ty = self.infer_expr_type(index);
+        let val_val = self.compile_expr(value)?;
+        let val_ty = self.infer_expr_type(value);
+        let elem_ty = self.array_element_type(obj).unwrap_or(val_ty);
+        let old = self.compile_native_call_declared(
+            "ArrayList_get",
+            &[obj_val, idx_val],
+            &[obj_ty.clone(), idx_ty.clone()],
+            Some(&elem_ty),
+        )?;
+        let shifted = self.compile_native_call_declared(
+            "ArrayList_set",
+            &[obj_val, idx_val, val_val],
+            &[obj_ty.clone(), idx_ty, self.infer_expr_type(value)],
+            Some(&obj_ty),
+        )?;
+        let result = self.compile_native_call_declared(
+            "ArrayList_add",
+            &[shifted, old],
+            &[obj_ty.clone(), elem_ty],
+            Some(&obj_ty),
+        )?;
+        self.store_back_member_container(obj, result)?;
+        Ok(result)
+    }
+
     /// Find a field named `field` whose declared Titrate type is `fn(...)`,
     /// walking the class and its ancestors. The full fn type is returned with
     /// the return type as its last parameter (see `Type::Display`).
@@ -225,7 +296,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         let obj_ty = self.infer_expr_type(obj);
         // Generic receivers are compiled under a mangled name. Resolve before
         // any class_infos lookup or field-slot search, as method dispatch does.
-        let class_name = self.resolve_mono_class(&obj_ty)?;
+        let resolved = self.resolve_mono_class(&obj_ty)?;
+        let class_name = self.resolve_class_name(&resolved);
         let Some(ty) = self.fn_field_type(&class_name, field) else {
             return Ok(None);
         };
@@ -646,12 +718,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                             &[obj_ty.clone(), key_ty, val_ty],
                             Some(&obj_ty),
                         )?;
-                        self.store_back_container(obj, result)?;
+                        self.store_back_member_container(obj, result)?;
                         return Ok(Some(result));
                     }
                     if args.len() == 1 {
                         let result = self.compile_hashmap_update(obj, &args[0])?;
-                        self.store_back_container(obj, result)?;
+                        self.store_back_member_container(obj, result)?;
                         return Ok(Some(result));
                     }
                 }
@@ -844,6 +916,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 {
                     resolved_method = "removeAt".to_string();
                 }
+                if native_prefix == "ArrayList" && method == "add" && args.len() == 2
+                    && matches!(self.infer_expr_type(&args[0]).name(),
+                        "int" | "long" | "u32" | "u64" | "size" | "byte" | "short" | "u8" | "u16")
+                {
+                    return self.compile_arraylist_insert(obj, &args[0], &args[1]).map(Some);
+                }
                 let full_native = format!("{}_{}", native_prefix, resolved_method);
                 // Special handling for ArrayList.get — use type-aware compile_array_get_string.
                 if native_prefix == "ArrayList" && method == "get" && args.len() == 1 {
@@ -926,6 +1004,12 @@ impl<'ctx> LlvmBackend<'ctx> {
                 {
                     resolved_method = "removeAt".to_string();
                 }
+                if native_prefix == "ArrayList" && method == "add" && args.len() == 2
+                    && matches!(self.infer_expr_type(&args[0]).name(),
+                        "int" | "long" | "u32" | "u64" | "size" | "byte" | "short" | "u8" | "u16")
+                {
+                    return self.compile_arraylist_insert(obj, &args[0], &args[1]).map(Some);
+                }
                 let native_name = format!("{}_{}", native_prefix, resolved_method);
                 // Element-type-aware ArrayList.get / ArrayList.size for any
                 // ArrayList-typed receiver (locals, `this.field`, `obj.field`).
@@ -975,7 +1059,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                         None,
                     )?;
                     if Self::is_container_mutator(&native_name) {
-                        self.store_back_container(obj, result)?;
+                        self.store_back_member_container(obj, result)?;
                     }
                     return Ok(Some(result));
                 }
@@ -1064,7 +1148,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // instantiating generic receivers on demand.
                 let obj_type = self.infer_expr_type(obj);
                 let resolved = self.resolve_mono_class(&obj_type)?;
-                let class_name = resolved.as_str();
+                // A source name may be module-qualified (`Codecvt.CodecvtUtf8`)
+                // while declarations are registered under the bare class name.
+                let bare = self.resolve_class_name(&resolved);
+                let class_name = bare.as_str();
                 if let Some(class_info) = self.class_infos.get(class_name).cloned() {
                     // Statically dispatch only when no subclass overrides
                     // the method; a subclass instance in this variable must
@@ -1256,7 +1343,7 @@ impl<'ctx> LlvmBackend<'ctx> {
                 // into the receiver so mutations persist across the value-copy
                 // native bridge (e.g. `this.xs.add(v)` updates the field).
                 if Self::is_container_mutator(&native_name) {
-                    self.store_back_container(obj, result)?;
+                    self.store_back_member_container(obj, result)?;
                 }
                 return Ok(Some(result));
             }
@@ -1381,11 +1468,46 @@ impl<'ctx> LlvmBackend<'ctx> {
                             None,
                         )?;
                         if Self::is_container_mutator(&native_name) {
-                            self.store_back_container(obj, result)?;
+                            self.store_back_member_container(obj, result)?;
                         }
                         return Ok(Some(result));
                     }
                 }
+            }
+        }
+
+        // Every dispatch path has been tried. A stdlib class method called on
+        // a builtin container (for example `list.pop()`) has no native with
+        // that name and no class instance to dispatch through, so the caller
+        // would otherwise see a cryptic "unsupported call target". Name the
+        // real receiver type in a diagnostic and yield a typed zero, matching
+        // the VM's null-like result for a method it cannot resolve.
+        if let Expr::MemberAccess(obj, method, _) = callee {
+            let obj_ty = self.infer_expr_type(obj);
+            let type_name = obj_ty.name();
+            // A chained field receiver (`this.root.title()`) may lose its
+            // declared type when the parent class is compiled later. A real
+            // object pointer still identifies the call as an instance call.
+            let object_receiver = self
+                .compile_expr(obj)
+                .map(|v| v.is_pointer_value())
+                .unwrap_or(false);
+            if matches!(type_name, "ArrayList" | "array" | "HashMap" | "Result" | "Variant")
+                || object_receiver
+            {
+                let ret_ty = self
+                    .generic_method_return(&obj_ty, method)
+                    .or_else(|| self.resolve_method_return(type_name, method))
+                    .unwrap_or_else(|| Type::simple("int"));
+                let default = self
+                    .sig_ret_llvm_type(Some(&ret_ty))?
+                    .unwrap_or_else(|| self.context.i32_type().into())
+                    .const_zero();
+                eprintln!(
+                    "codegen: method '{}' cannot be dispatched on '{}' receiver; emitting typed default",
+                    method, type_name
+                );
+                return Ok(Some(default));
             }
         }
         Ok(None)
@@ -1599,5 +1721,186 @@ mod tests {
             .try_compile_interface_this_call(&this_call("hasNext"), &[])
             .expect("class body")
             .is_none());
+    }
+
+    /// A stdlib class method invoked on a builtin container has neither a
+    /// native nor an object pointer to dispatch through. The fallback must
+    /// name the real receiver type and still produce a typed value so the
+    /// whole program compiles.
+    #[test]
+    fn unresolved_container_method_yields_typed_default() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "container_fallback");
+        backend.declare_natives();
+        let slot_ty = context.struct_type(
+            &[context.i64_type().into(), context.ptr_type(Default::default()).into()],
+            false,
+        );
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot = backend.builder.build_alloca(slot_ty, "list").expect("alloca");
+        backend.locals.insert(
+            "list".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: Some(Type::generic("ArrayList", vec![Type::simple("int")])),
+                titrate_type: Some("ArrayList".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let call = Expr::MemberAccess(
+            Box::new(Expr::Identifier("list".to_string(), Span::unknown())),
+            "pop".to_string(),
+            Span::unknown(),
+        );
+        let value = backend
+            .compile_call_member(&call, &[])
+            .expect("fallback dispatch")
+            .expect("container method must yield a default");
+        assert!(value.is_int_value(), "expected int default: {:?}", value);
+        assert_eq!(value.into_int_value().get_zero_extended_constant(), Some(0));
+    }
+
+    /// A variable declared with a module-qualified type must resolve the
+    /// member call against the bare class name used at declaration time.
+    #[test]
+    fn qualified_receiver_member_call_resolves() {
+        let source = r#"
+            class CodecvtUtf8 {
+                public fn fromBytes(): int { return 1; }
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let ast = crate::parser::parse(tokens).expect("parse");
+        let typed = crate::analyzer::analyze(&ast).expect("analyze");
+        let class = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("CodecvtUtf8 class");
+
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "qualified_receiver");
+        backend.declare_natives();
+        backend.class_decls.insert(class.name.clone(), class.clone());
+        backend.compile_class_decl(&class).expect("compile class");
+
+        let slot_ty = context.ptr_type(Default::default());
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot = backend.builder.build_alloca(slot_ty, "c").expect("alloca");
+        backend.locals.insert(
+            "c".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: Some(Type::simple("Codecvt.CodecvtUtf8")),
+                titrate_type: Some("Codecvt.CodecvtUtf8".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let call = Expr::MemberAccess(
+            Box::new(Expr::Identifier("c".to_string(), Span::unknown())),
+            "fromBytes".to_string(),
+            Span::unknown(),
+        );
+        let value = backend
+            .compile_call_member(&call, &[])
+            .expect("qualified dispatch")
+            .expect("method must resolve");
+        assert!(value.is_int_value(), "expected int result: {:?}", value);
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("CodecvtUtf8_fromBytes(ptr"), "{}", ir);
+    }
+
+    /// A container mutator on `child.maps` must write back through the
+    /// mangled specialization's field layout, not the bare source class.
+    #[test]
+    fn generic_field_container_writeback_uses_mangled_class() {
+        let source = r#"
+            class Box<T> {
+                public ArrayList<int> items;
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let ast = crate::parser::parse(tokens).expect("parse");
+        let typed = crate::analyzer::analyze(&ast).expect("analyze");
+        let class = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("Box class");
+
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "field_writeback");
+        backend.declare_natives();
+        backend.class_decls.insert(class.name.clone(), class.clone());
+        backend.compile_class_decl(&class).expect("compile class");
+        let box_int = Type::generic("Box", vec![Type::simple("int")]);
+        let mangled = backend.resolve_mono_class(&box_int).expect("specialize");
+        assert!(backend.class_infos.contains_key(&mangled), "{}", mangled);
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let ptr_ty = context.ptr_type(Default::default());
+        let this_ptr = backend
+            .builder
+            .build_alloca(ptr_ty, "box")
+            .expect("alloca");
+        backend.builder
+            .build_store(this_ptr, ptr_ty.const_null())
+            .expect("store null object");
+        backend.locals.insert(
+            "box".to_string(),
+            LocalVar {
+                ptr: this_ptr,
+                ty: ptr_ty.into(),
+                full_type: Some(box_int),
+                titrate_type: Some("Box".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let i64_ty = context.i64_type();
+        let container = context
+            .struct_type(&[i64_ty.into(), ptr_ty.into()], false)
+            .const_named_struct(&[
+                i64_ty.const_int(3, false).into(),
+                ptr_ty.const_null().into(),
+            ]);
+        let receiver = Expr::MemberAccess(
+            Box::new(Expr::Identifier("box".to_string(), Span::unknown())),
+            "items".to_string(),
+            Span::unknown(),
+        );
+        backend
+            .store_back_member_container(&receiver, container.into())
+            .expect("writeback");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("store { i64, ptr }"), "no field store: {}", ir);
+        assert!(ir.contains("items.store.gep"), "wrong receiver layout: {}", ir);
     }
 }

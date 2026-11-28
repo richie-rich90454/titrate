@@ -3,7 +3,7 @@
 use super::native_bridge;
 use super::types as llvm_types;
 use super::LlvmBackend;
-use crate::ast::{Expr, Literal, Operator, Type, UnOp};
+use crate::ast::{ClassMember, Expr, Literal, Operator, Type, UnOp};
 use inkwell::AddressSpace;
 use inkwell::types::BasicTypeEnum;
 use inkwell::values::BasicValueEnum;
@@ -373,23 +373,58 @@ impl<'ctx> LlvmBackend<'ctx> {
             // MemberAccess: obj.field — infer the field type from the class info.
             Expr::MemberAccess(obj, field, _) => {
                 let obj_ty = self.infer_expr_type_at_depth(obj, depth + 1);
+
                 // A monomorphized generic class stores the substituted field
                 // types under its mangled name; the bare name still holds the
                 // unresolved type parameter (e.g. `B` instead of `int`).
                 let class_name = self
                     .mono_mangled_for(&obj_ty)
                     .unwrap_or_else(|| obj_ty.name().to_string());
-                let cache_key = format!("{}_{}", class_name, field);
-                if let Some(ty) = self.field_titrate_type_names.get(&cache_key) {
-                    return ty.clone();
-                }
-                let class_name = obj_ty.name();
-                // Fall back to LLVM type reverse-mapping from class_infos.
-                if let Some(class_info) = self.class_infos.get(class_name).cloned() {
-                    if let Some((_, field_ty)) = class_info.fields.iter().find(|(n, _)| n == field)
-                    {
-                        return self.llvm_basic_type_to_titrate_type(*field_ty);
+                // Inherited fields are not repeated in a subclass's ClassInfo,
+                // so walk the parent chain before giving up on the type.
+                let mut current = Some(self.resolve_class_name(&class_name));
+                let mut visited = std::collections::HashSet::new();
+                while let Some(name) = current {
+                    if !visited.insert(name.clone()) {
+                        break;
                     }
+                    let cache_key = format!("{}_{}", name, field);
+                    if let Some(ty) = self.field_titrate_type_names.get(&cache_key) {
+                        return ty.clone();
+                    }
+                    if let Some(class_info) = self.class_infos.get(&name) {
+                        if let Some((_, field_ty)) =
+                            class_info.fields.iter().find(|(n, _)| n == field)
+                        {
+                            // An object field's LLVM type is an opaque pointer;
+                            // reverse mapping it yields "unknown". Keep walking
+                            // so the declaring ancestor's cache can supply the
+                            // real class name.
+                            let inferred = self.llvm_basic_type_to_titrate_type(*field_ty);
+                            if inferred.name() != "unknown" {
+                                return inferred;
+                            }
+                        }
+                    }
+                    if let Some(class_decl) = self.class_decls.get(&name) {
+                        if let Some(ClassMember::Field(f)) = class_decl
+                            .members
+                            .iter()
+                            .find(|m| matches!(m, ClassMember::Field(f) if f.name == *field))
+                        {
+                            return f.typ.clone();
+                        }
+                    }
+                    current = self
+                        .class_infos
+                        .get(&name)
+                        .and_then(|ci| ci.parent.clone())
+                        .or_else(|| {
+                            self.class_decls
+                                .get(&name)
+                                .and_then(|cd| cd.parent.as_ref().map(|t| t.name().to_string()))
+                        })
+                        .map(|p| self.resolve_class_name(&p));
                 }
                 Type::simple("unknown")
             }
@@ -779,6 +814,36 @@ mod tests {
             span: Span::unknown(),
         };
         assert_eq!(backend.infer_expr_type(&expr).name(), "int");
+    }
+
+    /// A field inherited from a parent class must keep its declared type when
+    /// inferred through the child receiver (`this.root` in a subclass).
+    #[test]
+    fn inherited_field_type_is_resolved_through_parent_chain() {
+        let source = r#"
+            class Tk { }
+            class Base { public Tk root; }
+            class Child extends Base { }
+        "#;
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "inherited_field");
+        for decl in &typed.declarations {
+            if let Declaration::Class(c) = decl {
+                backend.class_decls.insert(c.name.clone(), c.clone());
+                backend.compile_class_decl(c).expect("compile class");
+            }
+        }
+        backend.current_class_name = Some("Child".to_string());
+        let expr = Expr::MemberAccess(
+            Box::new(Expr::This(Span::unknown())),
+            "root".to_string(),
+            Span::unknown(),
+        );
+        let inferred = backend.infer_expr_type(&expr);
+        assert_eq!(inferred.name(), "Tk", "cache: {:?}", backend.field_titrate_type_names);
     }
 
     #[test]

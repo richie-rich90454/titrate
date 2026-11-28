@@ -21,6 +21,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             .iter()
             .find(|(k, d)| !d.type_params.is_empty() && k.ends_with(&suffix))
             .map(|(k, d)| (k.clone(), d.clone()))
+            .or_else(|| {
+                // A module-qualified reference (`M.Box`) names the same bare
+                // declaration as an unqualified one.
+                let bare = base.rsplit(['.', ':']).next()?;
+                let d = self.class_decls.get(bare)?;
+                (!d.type_params.is_empty()).then(|| (bare.to_string(), d.clone()))
+            })
     }
 
     /// Substitute a generic method's return type for a concrete receiver
@@ -209,7 +216,10 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
         self.class_method_returns
             .insert(mangled.to_string(), methods);
-        let result = self.compile_class_decl(&specialized);
+        self.predeclare_class_method_overloads(&specialized)?;
+        let result = self.compile_class_decl(&specialized).and_then(|_| {
+            self.compile_remaining_constructors(&specialized)
+        });
         self.locals = saved_locals;
         self.current_this = saved_this;
         self.current_class_name = saved_class_name;
@@ -456,6 +466,7 @@ impl<'ctx> LlvmBackend<'ctx> {
 mod tests {
     use super::*;
     use crate::ast::Declaration;
+    use crate::codegen::llvm::compile_to_ir_text;
 
     fn parse_program(source: &str) -> crate::ast::Program {
         let tokens = crate::lexer::tokenize(source).expect("tokenize");
@@ -489,6 +500,42 @@ mod tests {
             }
         }
         backend
+    }
+
+    /// A member-style call to a generic top-level function from inside a
+    /// generic class (`self.zipMap(other, f)`) must prepend the implicit
+    /// receiver, otherwise the specialization is emitted with 3 parameters
+    /// but called with 2 (`zipMap__double_a2`: expects 3 args, got 2).
+    #[test]
+    fn generic_specialization_call_arity_matches_signature() {
+        let source = r#"
+            public fn zipMap<T>(a: Box<T>, other: Box<T>, f: fn(T, T): T): Box<T> {
+                return new Box<T>(f(a.value, other.value));
+            }
+
+            public class Box<T> {
+                public T value;
+                public fn init(v: T) { this.value = v; }
+                public fn operator+(self, other: Box<T>): Box<T> {
+                    return self.zipMap(other, fn(a: T, b: T): T => a);
+                }
+            }
+
+            public fn main(): void {
+                let b = new Box<double>(1.0);
+                let c = b + b;
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let ast = crate::parser::parse(tokens).expect("parse");
+        let typed = crate::analyzer::analyze(&ast).expect("analyze");
+        let ir = compile_to_ir_text(&typed, std::path::Path::new("."))
+            .expect("implicit-receiver generic call must match the specialization arity");
+        assert!(
+            ir.contains("zipMap__double_a3"),
+            "specialization must carry the declared 3-argument arity:\n{}",
+            ir
+        );
     }
 
     #[test]
