@@ -47,6 +47,8 @@ fn prepare_root(root: &Path) -> Result<(), String> {
 
 /// Write one generated graph into `root`.
 pub fn write_graph(root: &Path, files: &[(String, String)]) -> Result<(), String> {
+    fs::create_dir_all(root)
+        .map_err(|error| format!("create graph directory: {}", error))?;
     for (name, source) in files {
         fs::write(root.join(name), source)
             .map_err(|error| format!("write module '{}': {}", name, error))?;
