@@ -104,8 +104,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         let left_ty = self.infer_expr_type(left);
         let right_ty = self.infer_expr_type(right);
         if *op == Operator::Add
-            && llvm_types::is_string(&left_ty)
-            && llvm_types::is_string(&right_ty)
+            && (llvm_types::is_string(&left_ty) || llvm_types::is_string(&right_ty))
         {
             let l = self.compile_string_expr(left)?;
             let r = self.compile_string_expr(right)?;
@@ -173,17 +172,16 @@ impl<'ctx> LlvmBackend<'ctx> {
         let lv = self.compile_expr(left)?;
         let rv = self.compile_expr(right)?;
 
-        // Fallback string concatenation: both operands are string structs
-        // but type inference didn't detect them as strings (e.g., user-defined
-        // function calls where infer_expr_type returns "unknown").
+        // Fallback string concatenation: either compiled operand is a string
+        // struct but type inference didn't detect it (e.g. user-defined
+        // function calls returning "unknown"). The non-string side is coerced
+        // to its string form by `coerce_to_string_value`.
         if *op == Operator::Add
-            && lv.is_struct_value()
-            && rv.is_struct_value()
-            && self.is_string_struct(&lv)
-            && self.is_string_struct(&rv)
+            && ((lv.is_struct_value() && self.is_string_struct(&lv))
+                || (rv.is_struct_value() && self.is_string_struct(&rv)))
         {
-            let l = self.basic_to_string_value(lv)?;
-            let r = self.basic_to_string_value(rv)?;
+            let l = self.coerce_to_string_value(lv)?;
+            let r = self.coerce_to_string_value(rv)?;
             let sv = self.build_string_concat(l, r)?;
             return self.string_value_to_basic(sv);
         }
@@ -487,6 +485,42 @@ mod tests {
         let entry = context.append_basic_block(f, "entry");
         backend.builder.position_at_end(entry);
         backend
+    }
+
+    #[test]
+    fn string_plus_scalar_concatenates_instead_of_adding_lengths() {
+        let source = r#"
+            public fn main(): void {
+                let s: string = "n=" + 5;
+                io::println(s);
+            }
+        "#;
+        let tokens = crate::lexer::tokenize(source).expect("tokenize");
+        let ast = crate::parser::parse(tokens).expect("parse");
+        let typed = crate::analyzer::analyze(&ast).expect("analyze");
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "concat-test");
+        backend.declare_natives();
+        let main = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                crate::ast::Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("main");
+        backend.compile_main(main).expect("compile");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("titrate_string_concat") && ir.contains("toString"),
+            "the scalar must be rendered via toString before concatenation: {}",
+            ir
+        );
+        assert!(
+            !ir.contains("add i64 %sv.0"),
+            "concatenation must not add the scalar to the string length: {}",
+            ir
+        );
     }
 
     #[test]

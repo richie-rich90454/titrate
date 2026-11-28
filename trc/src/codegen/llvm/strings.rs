@@ -642,6 +642,34 @@ impl<'ctx> LlvmBackend<'ctx> {
     }
 
     /// Extract a `StringValue` from a `BasicValueEnum` that is a string struct.
+    /// Convert a compiled value to its string form for concatenation. String
+    /// structs pass through; scalars are rendered through the native `toString`
+    /// bridge, matching the VM's `string + value` semantics.
+    pub(super) fn coerce_to_string_value(
+        &mut self,
+        v: BasicValueEnum<'ctx>,
+    ) -> Result<StringValue<'ctx>, String> {
+        if v.is_struct_value() && self.is_string_struct(&v) {
+            return self.basic_to_string_value(v);
+        }
+        let ty = match v {
+            BasicValueEnum::IntValue(_) => Type::simple("int"),
+            BasicValueEnum::FloatValue(f) if f.get_type().get_bit_width() == 32 => {
+                Type::simple("float")
+            }
+            BasicValueEnum::FloatValue(_) => Type::simple("double"),
+            BasicValueEnum::PointerValue(_) => Type::simple("string"),
+            _ => Type::simple("unknown"),
+        };
+        let rendered = self.compile_native_call_declared(
+            "toString",
+            &[v],
+            &[ty],
+            Some(&Type::simple("string")),
+        )?;
+        self.basic_to_string_value(rendered)
+    }
+
     pub(super) fn basic_to_string_value(&mut self, v: BasicValueEnum<'ctx>) -> Result<StringValue<'ctx>, String> {
         match v {
             BasicValueEnum::StructValue(sv) => {
