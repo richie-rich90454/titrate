@@ -754,6 +754,9 @@ const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
     ("Os_getcwd", "string"),
     ("Os_getenv", "string"),
     ("Os_environ", "string"),
+    // CSPRNG wrapper returns a hex string; without this entry the fallback
+    // `int` shape reaches `Hex.decodeToBytes(string)` as an i32 and aborts LLVM.
+    ("Os_urandom", "string"),
     ("JsonValue_asString", "string"),
     // bool (one-byte payload; reading it as i32 picks up garbage)
     ("Regex_match", "bool"),
@@ -1076,6 +1079,18 @@ mod tests {
         // Process id appeared in both long and int lists.
         assert_eq!(infer_native_return_type("Process_id").name(), "long");
         assert_eq!(infer_native_return_type("Hash_crc32").name(), "string");
+    }
+
+    #[test]
+    fn os_urandom_return_type_is_string_not_int() {
+        // Secrets.tr passes Os_urandom(n) directly into Hex.decodeToBytes(string).
+        // The fallback `int` shape emitted an i32 there, so LLVM aborted the
+        // compiler with "Calling a function with a bad signature!".
+        assert_eq!(infer_native_return_type("Os_urandom").name(), "string");
+        assert_eq!(
+            infer_native_return_type_for_args("Os_urandom", 1).name(),
+            "string"
+        );
     }
 
     /// The stdlib `.tr` modules call these names directly as bare identifiers.

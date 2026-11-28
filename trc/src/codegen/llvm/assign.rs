@@ -1233,11 +1233,34 @@ impl<'ctx> LlvmBackend<'ctx> {
         }
 
         self.builder.position_at_end(end_block);
+        // Both incoming values must have the phi's exact LLVM type. A branch
+        // that yields `null` lowers to an opaque pointer while the other yields
+        // a `{ i64, ptr }` container; prefer the container type and zero it for
+        // the null branch instead of feeding mismatched types to LLVM.
+        let phi_ty = if then_val.is_pointer_value() && !else_val.is_pointer_value() {
+            else_val.get_type()
+        } else {
+            then_val.get_type()
+        };
+        let then_in = if then_val.get_type() == phi_ty {
+            then_val
+        } else if then_val.is_pointer_value() && phi_ty.is_struct_type() {
+            phi_ty.into_struct_type().const_zero().into()
+        } else {
+            self.cast_value_to_type(then_val, phi_ty)?
+        };
+        let else_in = if else_val.get_type() == phi_ty {
+            else_val
+        } else if else_val.is_pointer_value() && phi_ty.is_struct_type() {
+            phi_ty.into_struct_type().const_zero().into()
+        } else {
+            self.cast_value_to_type(else_val, phi_ty)?
+        };
         let phi = self
             .builder
-            .build_phi(then_val.get_type(), "tern.result")
+            .build_phi(phi_ty, "tern.result")
             .map_err(|e| format!("build_phi ternary failed: {:?}", e))?;
-        phi.add_incoming(&[(&then_val, then_block_end), (&else_val, else_block_end)]);
+        phi.add_incoming(&[(&then_in, then_block_end), (&else_in, else_block_end)]);
 
         Ok(phi.as_basic_value())
     }

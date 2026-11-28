@@ -178,6 +178,12 @@ pub(crate) fn native_string_char_at(args: &[Value]) -> Result<Value, String> {
     if idx < 0 {
         return Err(format!("String_charAt: index {} out of bounds", idx));
     }
+    if s.is_ascii() {
+        return match s.as_bytes().get(idx as usize) {
+            Some(b) => Ok(Value::String(Rc::new((*b as char).to_string()))),
+            None => Err(format!("String_charAt: index {} out of bounds for string of length {}", idx, s.len())),
+        };
+    }
     match s.chars().nth(idx as usize) {
         Some(c) => Ok(Value::String(Rc::new(c.to_string()))),
         None => Err(format!(

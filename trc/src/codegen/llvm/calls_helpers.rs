@@ -8,7 +8,7 @@ use super::vtable::{
 };
 use super::{body_binds_name, stmt_contains_return, MethodBody};
 use super::{ClosureSig, LlvmBackend, LocalVar};
-use crate::ast::{ClassMember, Expr, Stmt, Type};
+use crate::ast::{ClassMember, Expr, Literal, Stmt, Type};
 use inkwell::AddressSpace;
 use inkwell::module::Linkage;
 use inkwell::types::{BasicType, BasicTypeEnum};
@@ -727,6 +727,27 @@ impl<'ctx> LlvmBackend<'ctx> {
                     if Self::is_shared_container_ty(inner));
             if by_ref && arg_is_container {
                 return Ok(self.container_slot_ptr(arg)?.into());
+            }
+            if by_ref && matches!(arg, Expr::Literal(Literal::Null, _)) {
+                // A null literal passed to a by-reference container parameter
+                // must decay to a slot holding a zeroed container, never a raw
+                // null pointer: the callee loads `{ i64, ptr }` from that slot
+                // and dereferencing address zero faults.
+                let llvm_ty = self.user_param_llvm_type(ty)?;
+                let slot = self
+                    .builder
+                    .build_alloca(llvm_ty, "null.container.slot")
+                    .map_err(|e| format!("build_alloca null container slot failed: {:?}", e))?;
+                let zero: inkwell::values::BasicValueEnum<'ctx> = match llvm_ty {
+                    BasicTypeEnum::StructType(st) => st.const_zero().into(),
+                    BasicTypeEnum::IntType(it) => it.const_zero().into(),
+                    BasicTypeEnum::PointerType(pt) => pt.const_null().into(),
+                    _ => self.context.i32_type().const_zero().into(),
+                };
+                self.builder
+                    .build_store(slot, zero)
+                    .map_err(|e| format!("build_store null container slot failed: {:?}", e))?;
+                return Ok(slot.into());
             }
             if self.is_interface_ty(ty) {
                 return Ok(self.wrap_interface_arg(arg, ty.name())?.into());

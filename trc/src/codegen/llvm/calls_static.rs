@@ -2,12 +2,38 @@
 
 use super::native_bridge;
 use super::types as llvm_types;
+use super::vtable::check_call_args;
 use super::LlvmBackend;
 use crate::ast::{Expr, Type};
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::BasicValueEnum;
+use inkwell::values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, PointerValue, ValueKind};
 
 impl<'ctx> LlvmBackend<'ctx> {
+    /// Emit a `Class_method` call with a leading `this`. Source arguments are
+    /// reshaped to the callee's declared LLVM parameter types (container values
+    /// become their shared slot), then preflight-checked so a residual mismatch
+    /// becomes a descriptive error instead of an LLVM bad-signature abort.
+    fn build_static_method_call(
+        &mut self,
+        fn_val: FunctionValue<'ctx>,
+        this: PointerValue<'ctx>,
+        args: &[Expr],
+        params: Option<&[Type]>,
+        name: &str,
+    ) -> Result<BasicValueEnum<'ctx>, String> {
+        let mut arg_vals: Vec<BasicMetadataValueEnum<'ctx>> = vec![this.into()];
+        for v in self.build_this_call_args(fn_val, params, args)? {
+            arg_vals.push(v.into());
+        }
+        check_call_args(fn_val, &arg_vals, name)?;
+        let call = self.builder.build_call(fn_val, &arg_vals, "call")
+            .map_err(|e| format!("build_call '{}' failed: {:?}", name, e))?;
+        match call.try_as_basic_value() {
+            ValueKind::Basic(v) => Ok(v),
+            _ => Ok(self.context.i32_type().const_zero().into()),
+        }
+    }
+
     /// Compile a StaticCall expression: Class.method(args).
     /// This maps to native function calls like Integer_parseInt, String_length, etc.
     pub(super) fn compile_static_call(
@@ -206,17 +232,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         let method_fn_name = format!("{}_{}", class_name, method);
         if let Some(this) = self.current_this {
             if let Some(fn_val) = self.module.get_function(&method_fn_name) {
-                let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
-                    vec![this.into()];
-                for arg in args {
-                    arg_vals.push(self.compile_expr(arg)?.into());
-                }
-                let call = self.builder.build_call(fn_val, &arg_vals, "call")
-                    .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
-                match call.try_as_basic_value() {
-                    inkwell::values::ValueKind::Basic(v) => return Ok(v),
-                    _ => return Ok(self.context.i32_type().const_zero().into()),
-                }
+                let params = self.method_decl_params(class_name, method);
+                return self.build_static_method_call(
+                    fn_val,
+                    this,
+                    args,
+                    params.as_deref(),
+                    &method_fn_name,
+                );
             }
         }
         // Module-style calls on a top-level function: `Hmac.sha256(k, m)`
@@ -245,17 +268,14 @@ impl<'ctx> LlvmBackend<'ctx> {
         let argc = args.len() + 1;
         if let Some(fn_val) = self.resolve_user_fn(&method_fn_name, argc) {
             let i8_ptr = self.context.ptr_type(inkwell::AddressSpace::default());
-            let mut arg_vals: Vec<inkwell::values::BasicMetadataValueEnum<'ctx>> =
-                vec![i8_ptr.const_null().into()];
-            for arg in args {
-                arg_vals.push(self.compile_expr(arg)?.into());
-            }
-            let call = self.builder.build_call(fn_val, &arg_vals, "call")
-                .map_err(|e| format!("build_call '{}' failed: {:?}", method_fn_name, e))?;
-            return match call.try_as_basic_value() {
-                inkwell::values::ValueKind::Basic(v) => Ok(v),
-                _ => Ok(self.context.i32_type().const_zero().into()),
-            };
+            let params = self.method_decl_params(class_name, method);
+            return self.build_static_method_call(
+                fn_val,
+                i8_ptr.const_null(),
+                args,
+                params.as_deref(),
+                &method_fn_name,
+            );
         }
         Err(format!(
             "codegen: unsupported static call: {}.{}",

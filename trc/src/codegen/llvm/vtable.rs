@@ -917,7 +917,7 @@ pub(super) fn coerce_call_arg<'ctx>(
 /// parameter types before emission. LLVM aborts the compiler ("Calling a
 /// function with a bad signature!") when a value's type differs from the
 /// declared parameter type; report a descriptive error instead.
-fn check_call_args<'ctx>(
+pub(super) fn check_call_args<'ctx>(
     f: FunctionValue<'ctx>,
     args: &[BasicMetadataValueEnum<'ctx>],
     name: &str,
@@ -1434,6 +1434,31 @@ mod tests {
             .build_load(ty, slot, "arg.val")
             .expect("load")
             .into_struct_value()
+    }
+
+    #[test]
+    fn check_call_args_rejects_mismatched_signature_before_llvm_abort() {
+        let context = Context::create();
+        let module = context.create_module("sigcheck");
+        let _builder = positioned_builder(&context, &module);
+        let fn_ty = context
+            .void_type()
+            .fn_type(&[context.i32_type().into()], false);
+        let f = module.add_function("takes_i32", fn_ty, None);
+
+        let good: BasicMetadataValueEnum = context.i32_type().const_int(1, false).into();
+        assert!(check_call_args(f, &[good], "direct").is_ok());
+
+        let bad: BasicMetadataValueEnum = context.i64_type().const_int(1, false).into();
+        let err = check_call_args(f, &[bad], "direct").expect_err("mismatch must be rejected");
+        assert!(
+            err.contains("arg 0 expected") && err.contains("i64"),
+            "{}",
+            err
+        );
+
+        let arity = check_call_args(f, &[], "direct").expect_err("arity mismatch");
+        assert!(arity.contains("expects 1 args, got 0"), "{}", arity);
     }
 
     #[test]
