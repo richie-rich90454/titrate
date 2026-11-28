@@ -576,11 +576,17 @@ impl<'ctx> LlvmBackend<'ctx> {
                     for arg in args {
                         arg_vals.push(self.compile_expr(arg)?);
                     }
+                    // Some natives change result shape by arity (e.g.
+                    // Random_nextLong with state arguments returns a 3-element
+                    // array). Use the arity-aware declared type so the payload
+                    // decodes as the right LLVM value.
+                    let declared =
+                        native_bridge::infer_native_return_type_for_args(name, arg_vals.len());
                     return self.compile_native_call_declared(
                         name,
                         &arg_vals,
                         &arg_types,
-                        None,
+                        Some(&declared),
                     );
                 }
             }

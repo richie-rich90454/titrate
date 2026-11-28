@@ -901,6 +901,19 @@ pub fn infer_native_return_type(native_name: &str) -> Type {
     Type::simple("int")
 }
 
+/// Arity-aware native return type. A few natives change their result shape by
+/// argument count: `Random_nextLong()` returns a plain long, while
+/// `Random_nextLong(s0, s1)` returns `[new_s0, new_s1, result]`. Using the
+/// name-only table for the 2-argument form decodes an array payload as an i64
+/// handle with a null data pointer, and indexing it faults.
+pub fn infer_native_return_type_for_args(native_name: &str, argc: usize) -> Type {
+    match (native_name, argc) {
+        ("Random_nextLong", 2) => Type::generic("array", vec![Type::simple("long")]),
+        ("Random_nextDouble", 2) => Type::generic("array", vec![Type::simple("double")]),
+        _ => infer_native_return_type(native_name),
+    }
+}
+
 /// Emit a call to a native function using the out-pointer pattern.
 ///
 /// This function:

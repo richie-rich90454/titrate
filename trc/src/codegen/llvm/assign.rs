@@ -373,6 +373,38 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let len_v = self.builder.build_extract_value(sv, 0, "cast.str.len").ok();
                     let ptr_v = self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok();
                     if let (Some(len_v), Some(BasicValueEnum::PointerValue(data))) = (len_v, ptr_v) {
+                        // A numeric Variant payload also has the `{ i64, ptr }`
+                        // shape with a null data word. Only decode UTF-8 for a
+                        // genuine string (non-null data); otherwise extract the
+                        // numeric payload from field 0.
+                        let i64_ty = self.context.i64_type();
+                        let data_bits = self.builder
+                            .build_ptr_to_int(data, i64_ty, "cast.str.data.bits")
+                            .map_err(|e| format!("cast str data bits failed: {:?}", e))?;
+                        let data_null = self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                data_bits,
+                                i64_ty.const_zero(),
+                                "cast.str.data.null",
+                            )
+                            .map_err(|e| format!("cast str data null check failed: {:?}", e))?;
+                        if let Some(is_null) = data_null.get_zero_extended_constant() {
+                            if is_null != 0 {
+                                // Known null data word: numeric payload, skip UTF-8.
+                                let to_ty = target_ty.into_int_type();
+                                let raw = len_v.into_int_value();
+                                let value = if raw.get_type().get_bit_width() < to_ty.get_bit_width() {
+                                    self.builder.build_int_z_extend(raw, to_ty, "cast.num.zext")
+                                } else if raw.get_type().get_bit_width() > to_ty.get_bit_width() {
+                                    self.builder.build_int_truncate(raw, to_ty, "cast.num.trunc")
+                                } else {
+                                    Ok(raw)
+                                }
+                                .map_err(|e| format!("cast numeric payload failed: {:?}", e))?;
+                                return Ok(value.into());
+                            }
+                        }
                         let scalar = self.build_string_scalar(len_v.into_int_value(), data)?;
                         let to_ty = target_ty.into_int_type();
                         let result = if scalar.get_type().get_bit_width() < to_ty.get_bit_width() {

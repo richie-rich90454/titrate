@@ -357,6 +357,22 @@ impl<'ctx> LlvmBackend<'ctx> {
                     .map_err(|e| format!("build_ptr_to_int cast failed: {:?}", e))?;
                 return self.cast_value_to_type(bits.into(), target_ty);
             }
+            // A Variant payload has the same `{ i64, ptr }` shape as a string
+            // but field 1 is a null tag word, not UTF-8 data. Extract field 0
+            // directly so `variant_element as long` never dereferences it.
+            let source_ty = self.infer_expr_type(obj);
+            let source_name = source_ty.name();
+            if obj_val.is_struct_value()
+                && target_ty.is_int_type()
+                && matches!(source_name, "Variant" | "unknown")
+                && self.is_string_struct(&obj_val)
+            {
+                if let BasicValueEnum::StructValue(sv) = obj_val {
+                    if let Ok(f0) = self.builder.build_extract_value(sv, 0, "cast.variant.num") {
+                        return self.cast_value_to_type(f0, target_ty);
+                    }
+                }
+            }
             return self.cast_value_to_type(obj_val, target_ty);
         }
         // Simple class cast: identity.
@@ -401,6 +417,48 @@ mod tests {
     fn parse_program(source: &str) -> Program {
         let tokens = crate::lexer::tokenize(source).expect("tokenize");
         crate::parser::parse(tokens).expect("parse")
+    }
+
+    #[test]
+    fn variant_payload_cast_to_int_does_not_decode_utf8() {
+        // Build the IR for an unknown-typed `{ i64, ptr }` local (a Variant
+        // payload from a native array element) cast to int. The cast must
+        // extract field 0 directly, never dereference the null tag word.
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "variant-cast");
+        let f = backend.module.add_function(
+            "check_variant_cast",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        let container_ty = native_bridge::titrate_array_type(&context);
+        let slot = backend.builder.build_alloca(container_ty, "variant.slot").expect("alloca");
+        let zero = container_ty.const_zero();
+        backend.builder.build_store(slot, zero).expect("store");
+        backend.locals.insert(
+            "v".to_string(),
+            super::super::LocalVar {
+                ptr: slot,
+                ty: container_ty.into(),
+                full_type: None,
+                titrate_type: Some("unknown".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let expr = Expr::Identifier("v".to_string(), crate::ast::Span::unknown());
+        let result = backend
+            .compile_cast(&expr, &crate::ast::Type::simple("int"))
+            .expect("cast");
+        assert!(result.is_int_value(), "cast must yield an int");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("cast.variant.num"),
+            "Variant numeric cast must extract field 0 directly: {}",
+            ir
+        );
     }
 
     fn backend_with_inner<'ctx>(

@@ -613,7 +613,8 @@ impl<'ctx> LlvmBackend<'ctx> {
         arg_values: &[BasicValueEnum<'ctx>],
         arg_types: &[Type],
     ) -> Result<BasicValueEnum<'ctx>, String> {
-        let declared = native_bridge::infer_native_return_type(native_name);
+        let declared =
+            native_bridge::infer_native_return_type_for_args(native_name, arg_values.len());
         self.compile_native_call_declared(native_name, arg_values, arg_types, Some(&declared))
     }
 
