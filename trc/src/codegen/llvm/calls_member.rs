@@ -219,28 +219,114 @@ impl<'ctx> LlvmBackend<'ctx> {
         let obj_val = self.compile_expr(obj)?;
         let obj_ty = self.infer_expr_type(obj);
         let idx_val = self.compile_expr(index)?;
-        let idx_ty = self.infer_expr_type(index);
         let val_val = self.compile_expr(value)?;
         let val_ty = self.infer_expr_type(value);
-        let elem_ty = self.array_element_type(obj).unwrap_or(val_ty);
-        let old = self.compile_native_call_declared(
+        let elem_ty = self.array_element_type(obj).unwrap_or(val_ty.clone());
+        let i32_ty = self.context.i32_type();
+
+        // Append first: this is the only native that can grow the list, and
+        // it works for an empty receiver. The old get/set/add "insert" failed
+        // on an empty list (set was out of bounds) and put the value after
+        // the displaced element rather than before it.
+        let appended = self.compile_native_call_declared(
+            "ArrayList_add",
+            &[obj_val, val_val],
+            &[obj_ty.clone(), val_ty],
+            Some(&obj_ty),
+        )?;
+        let len = self.compile_native_call_declared(
+            "ArrayList_size",
+            &[obj_val],
+            std::slice::from_ref(&obj_ty),
+            None,
+        )?;
+        let len_i32 = self.cast_value_to_type(len, i32_ty.into())?.into_int_value();
+        let raw_idx = self.cast_value_to_type(idx_val, i32_ty.into())?.into_int_value();
+        let below_zero = self.builder.build_int_compare(
+            inkwell::IntPredicate::SLT,
+            raw_idx,
+            i32_ty.const_zero(),
+            "insert.below",
+        ).map_err(|e| format!("insert clamp compare failed: {:?}", e))?;
+        let nonneg = self.builder.build_select(below_zero, i32_ty.const_zero(), raw_idx, "insert.nonneg")
+            .map_err(|e| format!("insert clamp select failed: {:?}", e))?
+            .into_int_value();
+        let past_end = self.builder.build_int_compare(
+            inkwell::IntPredicate::SGT,
+            nonneg,
+            len_i32,
+            "insert.past",
+        ).map_err(|e| format!("insert clamp upper compare failed: {:?}", e))?;
+        let idx_i32 = self.builder.build_select(past_end, len_i32, nonneg, "insert.idx")
+            .map_err(|e| format!("insert clamp upper select failed: {:?}", e))?
+            .into_int_value();
+        let list_ty = appended.get_type();
+        let list_slot = self.build_entry_alloca(list_ty, "insert.list")
+            .map_err(|e| format!("insert list alloca failed: {:?}", e))?;
+        self.builder.build_store(list_slot, appended)
+            .map_err(|e| format!("insert list store failed: {:?}", e))?;
+        let j_slot = self.build_entry_alloca(i32_ty.into(), "insert.j")
+            .map_err(|e| format!("insert index alloca failed: {:?}", e))?;
+        self.builder.build_store(j_slot, len_i32)
+            .map_err(|e| format!("insert index store failed: {:?}", e))?;
+
+        let parent = self.builder.get_insert_block()
+            .and_then(|b| b.get_parent())
+            .ok_or_else(|| "arraylist insert outside a function".to_string())?;
+        let cond_bb = self.context.append_basic_block(parent, "insert.cond");
+        let body_bb = self.context.append_basic_block(parent, "insert.body");
+        let end_bb = self.context.append_basic_block(parent, "insert.end");
+        self.builder.build_unconditional_branch(cond_bb)
+            .map_err(|e| format!("insert branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(cond_bb);
+        let j = self.builder.build_load(i32_ty, j_slot, "insert.j")
+            .map_err(|e| format!("insert index load failed: {:?}", e))?
+            .into_int_value();
+        let more = self.builder.build_int_compare(inkwell::IntPredicate::SGT, j, idx_i32, "insert.more")
+            .map_err(|e| format!("insert compare failed: {:?}", e))?;
+        self.builder.build_conditional_branch(more, body_bb, end_bb)
+            .map_err(|e| format!("insert conditional branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(body_bb);
+        let list = self.builder.build_load(list_ty, list_slot, "insert.list")
+            .map_err(|e| format!("insert list load failed: {:?}", e))?;
+        let prev = self.builder.build_int_sub(j, i32_ty.const_int(1, false), "insert.prev")
+            .map_err(|e| format!("insert index decrement failed: {:?}", e))?;
+        let displaced = self.compile_native_call_declared(
             "ArrayList_get",
-            &[obj_val, idx_val],
-            &[obj_ty.clone(), idx_ty.clone()],
+            &[list, j.into()],
+            &[obj_ty.clone(), Type::simple("int")],
+            Some(&elem_ty),
+        )?;
+        let moved = self.compile_native_call_declared(
+            "ArrayList_get",
+            &[list, prev.into()],
+            &[obj_ty.clone(), Type::simple("int")],
             Some(&elem_ty),
         )?;
         let shifted = self.compile_native_call_declared(
             "ArrayList_set",
-            &[obj_val, idx_val, val_val],
-            &[obj_ty.clone(), idx_ty, self.infer_expr_type(value)],
+            &[list, j.into(), moved],
+            &[obj_ty.clone(), Type::simple("int"), elem_ty.clone()],
             Some(&obj_ty),
         )?;
-        let result = self.compile_native_call_declared(
-            "ArrayList_add",
-            &[shifted, old],
-            &[obj_ty.clone(), elem_ty],
+        let rotated = self.compile_native_call_declared(
+            "ArrayList_set",
+            &[shifted, prev.into(), displaced],
+            &[obj_ty.clone(), Type::simple("int"), elem_ty.clone()],
             Some(&obj_ty),
         )?;
+        self.builder.build_store(list_slot, rotated)
+            .map_err(|e| format!("insert rotated store failed: {:?}", e))?;
+        self.builder.build_store(j_slot, prev)
+            .map_err(|e| format!("insert index update failed: {:?}", e))?;
+        self.builder.build_unconditional_branch(cond_bb)
+            .map_err(|e| format!("insert loop branch failed: {:?}", e))?;
+
+        self.builder.position_at_end(end_bb);
+        let result = self.builder.build_load(list_ty, list_slot, "insert.result")
+            .map_err(|e| format!("insert result load failed: {:?}", e))?;
         self.store_back_member_container(obj, result)?;
         Ok(result)
     }
@@ -673,6 +759,40 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(Some(phi.as_basic_value()))
     }
 
+    /// Numeric Variant values are carried as `{ i64 bits, ptr tag }` slots
+    /// from `ArrayList<Variant>` elements. Field 1 is a tag cell, not a
+    /// pointer to a Variant instance, so the ordinary member dispatch would
+    /// read it as a receiver and fault. Read the scalar from field 0 instead.
+    fn try_compile_variant_payload_call(
+        &mut self,
+        callee: &Expr,
+        args: &[Expr],
+    ) -> Result<Option<BasicValueEnum<'ctx>>, String> {
+        let Expr::MemberAccess(obj, method, _) = callee else {
+            return Ok(None);
+        };
+        if self.infer_expr_type(obj).name() != "Variant"
+            || !args.is_empty()
+            || !matches!(method.as_str(), "asInt" | "asLong" | "asFloat" | "asDouble")
+        {
+            return Ok(None);
+        }
+        let obj_val = self.compile_expr(obj)?;
+        if !obj_val.is_struct_value() || !self.is_string_struct(&obj_val) {
+            return Ok(None);
+        }
+        let bits = self.builder.build_extract_value(obj_val.into_struct_value(), 0, "variant.num")
+            .map_err(|e| format!("variant payload extract failed: {:?}", e))?
+            .into_int_value();
+        let target = match method.as_str() {
+            "asInt" => self.context.i32_type().into(),
+            "asLong" => self.context.i64_type().into(),
+            "asFloat" => self.context.f32_type().into(),
+            _ => self.context.f64_type().into(),
+        };
+        Ok(Some(self.cast_value_to_type(bits.into(), target)?))
+    }
+
     pub(super) fn compile_call_member(&mut self, callee: &Expr, args: &[Expr]) -> Result<Option<BasicValueEnum<'ctx>>, String> {
         if let Expr::Identifier(name, _) = callee {
             if name == "Sys_args" && args.is_empty() {
@@ -683,6 +803,11 @@ impl<'ctx> LlvmBackend<'ctx> {
         // `this.method()` inside an interface default body: `this` is a raw
         // object pointer, so dispatch it through an interface fat pointer.
         if let Some(v) = self.try_compile_interface_this_call(callee, args)? {
+            return Ok(Some(v));
+        }
+
+        // A Variant slot may hold a boxed scalar rather than a Variant object.
+        if let Some(v) = self.try_compile_variant_payload_call(callee, args)? {
             return Ok(Some(v));
         }
 
@@ -1766,6 +1891,99 @@ mod tests {
             .expect("container method must yield a default");
         assert!(value.is_int_value(), "expected int default: {:?}", value);
         assert_eq!(value.into_int_value().get_zero_extended_constant(), Some(0));
+    }
+
+    /// `ArrayList.add(index, value)` on an empty list must append first and
+    /// rotate afterwards. The old get/set/add lowering indexed an empty list
+    /// and produced a null container that faulted on the next read.
+    #[test]
+    fn arraylist_insert_appends_before_rotating() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "arraylist_insert");
+        backend.declare_natives();
+        let container_ty = native_bridge::titrate_array_type(&context);
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot = backend.builder.build_alloca(container_ty, "list").expect("alloca");
+        backend.builder.build_store(slot, container_ty.const_zero()).expect("store");
+        backend.locals.insert(
+            "list".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: container_ty.into(),
+                full_type: Some(Type::generic("ArrayList", vec![Type::simple("int")])),
+                titrate_type: Some("ArrayList".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let obj = Expr::Identifier("list".to_string(), Span::unknown());
+        let idx = Expr::Literal(crate::ast::Literal::Int(0), Span::unknown());
+        let val = Expr::Literal(crate::ast::Literal::Int(9), Span::unknown());
+        backend.compile_arraylist_insert(&obj, &idx, &val).expect("insert");
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("insert.cond"), "insert loop missing: {}", ir);
+        assert!(ir.contains("ArrayList_add"), "append missing: {}", ir);
+        assert!(ir.contains("ArrayList_size"), "length probe missing: {}", ir);
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
+    }
+
+    /// A boxed numeric Variant reaches a member call as a `{ i64, ptr }`
+    /// slot, not as a Variant instance. The scalar accessor must read word 0
+    /// instead of dereferencing word 1 as an object pointer.
+    #[test]
+    fn variant_payload_asint_reads_numeric_word() {
+        let context = Context::create();
+        let mut backend = LlvmBackend::new(&context, "variant_payload");
+        let host = backend.module.add_function(
+            "host",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(host, "entry");
+        backend.builder.position_at_end(entry);
+        let slot_ty = context.struct_type(
+            &[context.i64_type().into(), context.ptr_type(Default::default()).into()],
+            false,
+        );
+        let slot = backend.builder.build_alloca(slot_ty, "v").expect("alloca");
+        let boxed = slot_ty.const_named_struct(&[
+            context.i64_type().const_int(258, false).into(),
+            context.ptr_type(Default::default()).const_null().into(),
+        ]);
+        backend.builder.build_store(slot, boxed).expect("store");
+        backend.locals.insert(
+            "v".to_string(),
+            LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: Some(Type::simple("Variant")),
+                titrate_type: Some("Variant".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let call = Expr::MemberAccess(
+            Box::new(Expr::Identifier("v".to_string(), Span::unknown())),
+            "asInt".to_string(),
+            Span::unknown(),
+        );
+        let value = backend
+            .try_compile_variant_payload_call(&call, &[])
+            .expect("variant dispatch")
+            .expect("boxed scalar must be dispatched");
+        assert!(value.is_int_value(), "expected a scalar: {:?}", value);
+        backend.builder.build_return(None).expect("return");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(ir.contains("variant.num"), "payload word not read: {}", ir);
+        assert!(!ir.contains("Variant_asInt"), "must not deref the tag word: {}", ir);
+        assert!(backend.module.verify().is_ok(), "invalid IR: {}", ir);
     }
 
     /// A variable declared with a module-qualified type must resolve the

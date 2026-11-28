@@ -251,6 +251,12 @@ pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
         _ => return Err("Signal_register: expected a signal number".to_string()),
     };
 
+    if !is_supported_os_signal(signum) {
+        // No OS handler for this signal on this platform; the stdlib keeps
+        // its own registry, so installation is a no-op here.
+        return Ok(Value::Int(0));
+    }
+
     // SIG_ERR is defined as ((_sig_func)-1), i.e. all-ones pointer.
     const SIG_ERR: usize = usize::MAX;
 
@@ -271,6 +277,25 @@ pub(crate) fn native_signal_register(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Int(0))
 }
 
+/// Whether `sig` is a real OS signal on this platform.
+fn is_supported_os_signal(sig: i32) -> bool {
+    #[cfg(windows)]
+    {
+        matches!(sig, 2 | 4 | 8 | 11 | 15 | 21 | 22)
+    }
+    #[cfg(not(windows))]
+    {
+        (1..32).contains(&sig)
+    }
+}
+
+/// Record a signal as received without calling into the C runtime.
+fn record_signal(sig: i32) {
+    if sig > 0 && (sig as usize) < SIGNAL_RECEIVED.len() {
+        SIGNAL_RECEIVED[sig as usize].store(true, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 /// Send a signal to the current process via the C raise() function.
 pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
     let signum = match args.first() {
@@ -278,6 +303,14 @@ pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
         Some(Value::Long(s)) => *s as i32,
         _ => return Err("Signal_raise: expected a signal number".to_string()),
     };
+
+    // The Windows CRT only accepts SIGINT/SIGILL/SIGFPE/SIGSEGV/SIGTERM/
+    // SIGBREAK/SIGABRT. Passing SIGUSR1 (10) invokes the invalid-parameter
+    // handler and terminates the process, so record it locally instead.
+    if !is_supported_os_signal(signum) {
+        record_signal(signum);
+        return Ok(Value::Int(0));
+    }
 
     // SAFETY: `raise` is an extern "C" function from the C standard library.
     // `signum` is an i32 derived from a Titrate Int/Long value. The call
@@ -289,6 +322,36 @@ pub(crate) fn native_signal_raise(args: &[Value]) -> Result<Value, String> {
     }
 
     Ok(Value::Int(0))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unsupported_signal_raise_does_not_call_crt() {
+        // SIGUSR1 (10) has no CRT handler on Windows; raise(10) used to
+        // terminate the process. The native must record it and return ok.
+        assert!(matches!(
+            native_signal_raise(&[Value::Int(10)]),
+            Ok(Value::Int(0))
+        ));
+        assert!(SIGNAL_RECEIVED[10].load(std::sync::atomic::Ordering::SeqCst));
+    }
+
+    #[test]
+    fn supported_signal_numbers_are_platform_specific() {
+        #[cfg(windows)]
+        {
+            assert!(is_supported_os_signal(2));
+            assert!(!is_supported_os_signal(10));
+        }
+        #[cfg(not(windows))]
+        {
+            assert!(is_supported_os_signal(10));
+            assert!(!is_supported_os_signal(0));
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

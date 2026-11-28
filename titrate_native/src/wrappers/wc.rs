@@ -615,6 +615,11 @@ pub unsafe extern "C" fn titrate_HashMap_remove(args: *const TitrateValue, arg_c
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn titrate_HashMap_entries(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
+    unsafe { native_wrapper("HashMap_entries", args, arg_count) }
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn titrate_HashMap_keys(args: *const TitrateValue, arg_count: usize) -> TitrateValue {
     unsafe { native_wrapper("HashMap_keys", args, arg_count) }
 }

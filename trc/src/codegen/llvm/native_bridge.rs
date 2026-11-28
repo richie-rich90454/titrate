@@ -373,6 +373,51 @@ pub fn marshal_to_titrate<'ctx>(
         _ => (TV_INT, value),
     };
 
+    // `null` passed through a Variant/container slot lowers to `{ i64 0,
+    // ptr null }`; an inferred scalar type would tag that as TV_LONG/TV_INT
+    // and the runtime would read it as a real zero (e.g. a slice stop index
+    // of 0 instead of "use the default"). Recognise the statically known
+    // empty-and-null slot and carry it as TV_NULL instead.
+    let is_null_ptr = if let BasicValueEnum::PointerValue(ptr) = value {
+        builder
+            .build_ptr_to_int(ptr, context.i64_type(), "tv.null.arg.bits")
+            .ok()
+            .and_then(|bits| bits.get_zero_extended_constant())
+            .is_some_and(|bits| bits == 0)
+    } else {
+        false
+    };
+    let is_null_slot = if let BasicValueEnum::StructValue(sv) = value {
+        if sv.get_type().count_fields() == 2 {
+            let len = builder.build_extract_value(sv, 0, "tv.null.len").ok();
+            let ptr = builder.build_extract_value(sv, 1, "tv.null.ptr").ok();
+            if let (Some(BasicValueEnum::IntValue(len)), Some(BasicValueEnum::PointerValue(ptr))) =
+                (len, ptr)
+            {
+                let len_zero = len
+                    .get_zero_extended_constant()
+                    .is_some_and(|bits| bits == 0);
+                let ptr_zero = builder
+                    .build_ptr_to_int(ptr, context.i64_type(), "tv.null.ptr.bits")
+                    .ok()
+                    .and_then(|bits| bits.get_zero_extended_constant())
+                    .is_some_and(|bits| bits == 0);
+                len_zero && ptr_zero
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    } else {
+        false
+    };
+    let (tag, stored_value) = if is_null_slot || is_null_ptr {
+        (TV_NULL, context.i64_type().const_zero().into())
+    } else {
+        (tag, stored_value)
+    };
+
     let tag_val = i32_ty.const_int(tag as u64, false);
     let pad_val = i32_ty.const_int(0, false);
 
@@ -836,6 +881,11 @@ const NAMED_NATIVE_RETURNS: &[(&str, &str)] = &[
     ("JsonValue_size", "int"),
     // array
     ("Sys_args", "array"),
+    // Slice returns a string for string inputs and an ArrayList for container
+    // inputs; both arrive as a tagged two-word slot. The old "int" fallback
+    // kept only the low word (the array length) and codegen rebuilt the slot
+    // with a null data pointer, so indexing the result faulted.
+    ("Slice_slice", "array"),
     ("String_split", "array"),
     ("Dir_list", "array"),
     ("HashMap_keys", "array"),
@@ -1030,6 +1080,7 @@ pub fn emit_native_call<'ctx>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkwell::values::AnyValue;
     use std::collections::HashSet;
 
     #[test]
@@ -1129,5 +1180,40 @@ mod tests {
         for (name, _) in STDLIB_BRIDGE_NATIVE_RETURNS {
             assert!(seen.insert(*name), "duplicate stdlib bridge native: {}", name);
         }
+    }
+
+    #[test]
+    fn slice_native_result_unmarshals_as_two_word_slot() {
+        // Slice returns either a string or an ArrayList; both arrive as a
+        // `{ i64, ptr }` payload. The old int fallback kept only the length,
+        // so codegen rebuilt the slot with a null pointer and crashed.
+        assert_eq!(infer_native_return_type("Slice_slice").name(), "array");
+    }
+
+    #[test]
+    fn null_pointer_arg_marshals_with_tv_null_tag() {
+        let context = Context::create();
+        let module = context.create_module("null_arg_test");
+        let builder = context.create_builder();
+        let fn_ty = context.void_type().fn_type(&[], false);
+        let f = module.add_function("null_arg_test_fn", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        builder.position_at_end(entry);
+
+        let tv = marshal_to_titrate(
+            &context,
+            &builder,
+            context.ptr_type(AddressSpace::default()).const_null().into(),
+            &Type::simple("long"),
+        )
+        .expect("null pointer should marshal");
+        let text = tv.print_to_string().to_string();
+        assert!(
+            text.contains("i32 1, i32 0"),
+            "null must carry TV_NULL (1), got {}",
+            text
+        );
+        builder.build_return(None).expect("return");
+        assert!(module.verify().is_ok(), "invalid IR after null marshal");
     }
 }

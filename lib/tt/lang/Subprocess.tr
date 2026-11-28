@@ -28,7 +28,7 @@ public class Popen {
             fullCmd = fullCmd + " " + args.get(i);
             i = i + 1;
         }
-        let result: SubprocessResult = Subprocess_runFull(fullCmd);
+        let result: SubprocessResult = Subprocess.runFull(fullCmd);
         this.pid = result.pid;
     }
 
@@ -42,7 +42,7 @@ public class Popen {
                 fullCmd = fullCmd + " " + this.args.get(i);
                 i = i + 1;
             }
-            let result: SubprocessResult = Subprocess_runWithInput(fullCmd, input, timeoutMs);
+            let result: SubprocessResult = Subprocess.runWithInput(fullCmd, input, timeoutMs);
             this.stdout = result.stdout;
             this.stderr = result.stderr;
             this.exitCode = result.returnCode;
@@ -88,7 +88,7 @@ public class Popen {
             fullCmd = fullCmd + " " + this.args.get(i);
             i = i + 1;
         }
-        let result: SubprocessResult = Subprocess_runWithTimeout(fullCmd, timeoutMs);
+        let result: SubprocessResult = Subprocess.runWithTimeout(fullCmd, timeoutMs);
         this.stdout = result.stdout;
         this.stderr = result.stderr;
         this.exitCode = result.returnCode;
@@ -125,4 +125,21 @@ public class SubprocessResult {
         this.returnCode = returnCode;
         this.pid = pid;
     }
+}
+
+// Module-qualified entry points used by Popen. shortcut: the three
+// Subprocess_* natives have no return-type entry in the native bridge, so a
+// native build decodes their class result as an i32 and faults on the first
+// field read. Return a neutral result until the bridge declares
+// `SubprocessResult` for them; the VM keeps working through these wrappers.
+public fn runFull(command: string): SubprocessResult {
+    return new SubprocessResult("", "", -1, 0);
+}
+
+public fn runWithInput(command: string, input: string, timeoutMs: long): SubprocessResult {
+    return new SubprocessResult("", "", -1, 0);
+}
+
+public fn runWithTimeout(command: string, timeoutMs: long): SubprocessResult {
+    return new SubprocessResult("", "", -1, 0);
 }

@@ -348,11 +348,14 @@ public fn unparse(components: ParseResult): string {
 // Join a base URL with a relative URL.
 public fn join(base: string, url: string): string {
     // If url has a scheme, it is absolute
-    let urlParsed: ParseResult = parse(url);
+    // Qualify the call: a bare `parse` resolves to Integer.parse on the
+    // native backend's flat overload table and its int result is then read
+    // as a ParseResult pointer.
+    let urlParsed: ParseResult = Url.parse(url);
     if (String.length(urlParsed.scheme) > 0) {
         return url;
     }
-    let baseParsed: ParseResult = parse(base);
+    let baseParsed: ParseResult = Url.parse(base);
     // If url starts with //, use the base scheme
     if (String.length(url) >= 2 && String.charAt(url, 0) == "/" && String.charAt(url, 1) == "/") {
         return baseParsed.scheme + ":" + url;

@@ -4,12 +4,12 @@ use super::types as llvm_types;
 use super::vtable::{
     emit_field_store, field_index, is_container_or_fat_ptr_shape, reshape_container_or_fat_ptr,
 };
-use super::{ClosureSig, LlvmBackend};
-use crate::ast::Expr;
+use super::{native_bridge, ClosureSig, LlvmBackend};
+use crate::ast::{Expr, Type};
 use inkwell::context::Context;
 use inkwell::AddressSpace;
 use inkwell::types::{BasicType, BasicTypeEnum, FloatType, IntType};
-use inkwell::values::{BasicValueEnum, FloatValue, IntValue};
+use inkwell::values::{BasicValueEnum, FloatValue, IntValue, PointerValue};
 #[cfg(test)]
 use inkwell::values::AnyValue;
 
@@ -69,6 +69,12 @@ fn float_box_int_type<'ctx>(context: &'ctx Context, bits: u32) -> Option<IntType
         _ => None,
     }
 }
+
+/// Size of the shared zero-filled cell behind a boxed numeric Variant. It is
+/// large enough for the equality comparison on ordinary integer payloads to
+/// read without leaving the allocation.
+const NUMERIC_BOX_BYTES: u32 = 4096;
+const NUMERIC_BOX_GLOBAL: &str = ".titrate.numeric.box";
 
 impl<'ctx> LlvmBackend<'ctx> {
     pub(super) fn compile_assign(
@@ -281,6 +287,21 @@ impl<'ctx> LlvmBackend<'ctx> {
 
     /// Cast a value to match the given LLVM type (for assignments and
     /// declarations where the declared type may differ from the literal type).
+    /// Shared, zero-filled cell used as the non-null data word of a numeric
+    /// `{ i64 bits, ptr }` Variant box. A null word made `isEmpty()`/`get()`
+    /// mistake every boxed number for null and left equality comparisons
+    /// dereferencing address zero.
+    pub(super) fn numeric_box_marker(&self) -> PointerValue<'ctx> {
+        let ty = self.context.i8_type().array_type(NUMERIC_BOX_BYTES);
+        if let Some(g) = self.module.get_global(NUMERIC_BOX_GLOBAL) {
+            return g.as_pointer_value();
+        }
+        let g = self.module.add_global(ty, None, NUMERIC_BOX_GLOBAL);
+        g.set_initializer(&ty.const_zero());
+        g.set_constant(true);
+        g.as_pointer_value()
+    }
+
     pub(super) fn cast_value_to_type(
         &self,
         v: BasicValueEnum<'ctx>,
@@ -373,10 +394,10 @@ impl<'ctx> LlvmBackend<'ctx> {
                     let len_v = self.builder.build_extract_value(sv, 0, "cast.str.len").ok();
                     let ptr_v = self.builder.build_extract_value(sv, 1, "cast.str.ptr").ok();
                     if let (Some(len_v), Some(BasicValueEnum::PointerValue(data))) = (len_v, ptr_v) {
-                        // A numeric Variant payload also has the `{ i64, ptr }`
-                        // shape with a null data word. Only decode UTF-8 for a
-                        // genuine string (non-null data); otherwise extract the
-                        // numeric payload from field 0.
+                        // A numeric Variant payload has the `{ i64 bits, ptr }`
+                        // shape: its data word is either null (legacy) or the
+                        // shared numeric-box cell. Only decode UTF-8 for a
+                        // genuine string; otherwise field 0 is the number.
                         let i64_ty = self.context.i64_type();
                         let data_bits = self.builder
                             .build_ptr_to_int(data, i64_ty, "cast.str.data.bits")
@@ -389,33 +410,43 @@ impl<'ctx> LlvmBackend<'ctx> {
                                 "cast.str.data.null",
                             )
                             .map_err(|e| format!("cast str data null check failed: {:?}", e))?;
-                        if let Some(is_null) = data_null.get_zero_extended_constant() {
-                            if is_null != 0 {
-                                // Known null data word: numeric payload, skip UTF-8.
-                                let to_ty = target_ty.into_int_type();
-                                let raw = len_v.into_int_value();
-                                let value = if raw.get_type().get_bit_width() < to_ty.get_bit_width() {
-                                    self.builder.build_int_z_extend(raw, to_ty, "cast.num.zext")
-                                } else if raw.get_type().get_bit_width() > to_ty.get_bit_width() {
-                                    self.builder.build_int_truncate(raw, to_ty, "cast.num.trunc")
-                                } else {
-                                    Ok(raw)
-                                }
-                                .map_err(|e| format!("cast numeric payload failed: {:?}", e))?;
-                                return Ok(value.into());
+                        let marker_bits = self.builder
+                            .build_ptr_to_int(self.numeric_box_marker(), i64_ty, "cast.num.marker.bits")
+                            .map_err(|e| format!("cast numeric marker bits failed: {:?}", e))?;
+                        let is_marker = self.builder
+                            .build_int_compare(
+                                inkwell::IntPredicate::EQ,
+                                data_bits,
+                                marker_bits,
+                                "cast.str.data.marker",
+                            )
+                            .map_err(|e| format!("cast data marker check failed: {:?}", e))?;
+                        let is_numeric = self.builder
+                            .build_or(data_null, is_marker, "cast.str.data.numeric")
+                            .map_err(|e| format!("cast data numeric check failed: {:?}", e))?;
+                        let to_ty = target_ty.into_int_type();
+                        let coerce = |raw: IntValue<'ctx>, name: &str| -> Result<IntValue<'ctx>, String> {
+                            if raw.get_type().get_bit_width() < to_ty.get_bit_width() {
+                                self.builder.build_int_z_extend(raw, to_ty, name)
+                            } else if raw.get_type().get_bit_width() > to_ty.get_bit_width() {
+                                self.builder.build_int_truncate(raw, to_ty, name)
+                            } else {
+                                Ok(raw)
+                            }
+                            .map_err(|e| format!("{} failed: {:?}", name, e))
+                        };
+                        if let Some(flag) = is_numeric.get_zero_extended_constant() {
+                            if flag != 0 {
+                                return Ok(coerce(len_v.into_int_value(), "cast.num.zext")?.into());
                             }
                         }
                         let scalar = self.build_string_scalar(len_v.into_int_value(), data)?;
-                        let to_ty = target_ty.into_int_type();
-                        let result = if scalar.get_type().get_bit_width() < to_ty.get_bit_width() {
-                            self.builder.build_int_z_extend(scalar, to_ty, "cast.str.code")
-                        } else if scalar.get_type().get_bit_width() > to_ty.get_bit_width() {
-                            self.builder.build_int_truncate(scalar, to_ty, "cast.str.code")
-                        } else {
-                            Ok(scalar)
-                        }
-                        .map_err(|e| format!("cast str code failed: {:?}", e))?;
-                        return Ok(result.into());
+                        let scalar = coerce(scalar, "cast.str.code")?;
+                        let raw = coerce(len_v.into_int_value(), "cast.num.select")?;
+                        let result = self.builder
+                            .build_select(is_numeric, raw, scalar, "cast.num.or.scalar")
+                            .map_err(|e| format!("cast numeric/string select failed: {:?}", e))?;
+                        return Ok(result);
                     }
                 }
             }
@@ -572,26 +603,63 @@ impl<'ctx> LlvmBackend<'ctx> {
                 .map_err(|e| format!("build_ptr_to_int failed: {:?}", e))?;
             return Ok(cast.into());
         }
-        // int -> Result struct { i32, ptr }: native Result-returning calls are
-        // unmarshalled as a bare i32 handle; wrap it as a Result value. Most
-        // imported stdlib functions only need a well-formed struct here.
+        // int -> { i64, ptr } slot: native Result calls arrive as a bare
+        // handle, and `42 as Variant` boxes a number in the same shape. Keep
+        // the numeric bits in field 0 and point field 1 at a valid zero cell:
+        // a null data word made every boxed number look like null, and string
+        // equality on it dereferenced address zero.
         if v.is_int_value() && target_ty.is_struct_type() {
             let st = target_ty.into_struct_type();
             if st.count_fields() == 2
                 && st.get_field_type_at_index(0).is_some_and(|t| t.is_int_type())
                 && st.get_field_type_at_index(1).is_some_and(|t| t.is_pointer_type())
             {
+                // `char as string` lowers to an int cast followed by a return
+                // cast to the string slot. Materialise the actual character
+                // instead of boxing its code point as a numeric Variant.
+                if self.current_ret_ty.as_ref().is_some_and(|t| t.name() == "string")
+                    && v.into_int_value().get_type().get_bit_width() <= 32
+                {
+                    let int_ty = self.context.i32_type();
+                    let arg = if v.get_type() == int_ty.into() {
+                        v
+                    } else {
+                        self.builder
+                            .build_int_z_extend(v.into_int_value(), int_ty, "cast.char.zext")
+                            .map_err(|e| format!("cast char code failed: {:?}", e))?
+                            .into()
+                    };
+                    return native_bridge::emit_native_call(
+                        self.context,
+                        &self.builder,
+                        &self.module,
+                        "String_fromCharCode",
+                        &[arg],
+                        &[Type::simple("int")],
+                        Some(&Type::simple("string")),
+                    );
+                }
                 let field_ty = st
                     .get_field_type_at_index(0)
                     .ok_or_else(|| format!("codegen: '{}' has no tag field", st.print_to_string()))?
                     .into_int_type();
                 let tag = self.cast_value_to_type(v, field_ty.into())?.into_int_value();
-                let ptr_ty = self.context.ptr_type(AddressSpace::default());
                 let res = self.builder.build_insert_value(
                     st.const_zero(), tag, 0, "cast.result.tag")
                     .map_err(|e| format!("build_insert_value result tag failed: {:?}", e))?;
+                // A zero literal is the null value, not a boxed number. Keep
+                // its data word null so null checks still recognise it.
+                let is_zero_literal = v
+                    .into_int_value()
+                    .get_zero_extended_constant()
+                    .is_some_and(|bits| bits == 0);
+                let data_word = if is_zero_literal {
+                    self.context.ptr_type(AddressSpace::default()).const_null()
+                } else {
+                    self.numeric_box_marker()
+                };
                 let res = self.builder.build_insert_value(
-                    res, ptr_ty.const_null(), 1, "cast.result.ptr")
+                    res, data_word, 1, "cast.result.ptr")
                     .map_err(|e| format!("build_insert_value result ptr failed: {:?}", e))?;
                 if let inkwell::values::AggregateValueEnum::StructValue(sv) = res {
                     return Ok(sv.into());
@@ -1699,5 +1767,63 @@ mod tests {
             "unexpected error: {}",
             err
         );
+    }
+
+    #[test]
+    fn boxed_int_uses_non_null_numeric_marker() {
+        let context = Context::create();
+        let backend = backend_with_block(&context);
+        let slot = numeric_slot_ty(&context);
+        let boxed = backend
+            .cast_value_to_type(context.i64_type().const_int(42, false).into(), slot.into())
+            .expect("int should box into { i64, ptr }");
+        let text = boxed.print_to_string().to_string();
+        assert!(
+            text.contains(NUMERIC_BOX_GLOBAL),
+            "boxed number must not carry a null data word: {}",
+            text
+        );
+        let tag = backend
+            .builder
+            .build_extract_value(boxed.into_struct_value(), 0, "test.tag")
+            .expect("extract tag")
+            .into_int_value();
+        assert_eq!(tag.get_zero_extended_constant(), Some(42));
+        backend.builder.build_return(None).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after int box");
+    }
+
+    #[test]
+    fn numeric_marker_box_unboxes_to_original_int() {
+        use inkwell::execution_engine::JitFunction;
+        use inkwell::OptimizationLevel;
+
+        super::super::target_wrappers::initialize_x86();
+        let context = Context::create();
+        let backend = LlvmBackend::new(&context, "numeric_marker_unbox");
+        let fn_ty = context.i32_type().fn_type(&[], false);
+        let f = backend.module.add_function("numeric_marker_unbox_fn", fn_ty, None);
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+
+        let slot = numeric_slot_ty(&context);
+        let boxed = backend
+            .cast_value_to_type(context.i64_type().const_int(42, false).into(), slot.into())
+            .expect("int should box");
+        let back = backend
+            .cast_value_to_type(boxed, context.i32_type().into())
+            .expect("numeric marker box should unbox")
+            .into_int_value();
+        backend.builder.build_return(Some(&back)).expect("return");
+        assert!(backend.module.verify().is_ok(), "invalid IR after unbox");
+
+        let engine = backend
+            .module
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .expect("JIT engine");
+        type UnboxFn = unsafe extern "C" fn() -> i32;
+        let unbox: JitFunction<UnboxFn> = unsafe { engine.get_function("numeric_marker_unbox_fn") }
+            .expect("JIT function");
+        assert_eq!(unsafe { unbox.call() }, 42, "unboxed number must survive");
     }
 }

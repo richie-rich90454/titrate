@@ -642,6 +642,7 @@ pub fn lookup_builtin_native(name: &str) -> Option<NativeFn> {
         "HashMap_containsValue" => Some(system_containers::native_hashmap_contains_value),
         "HashMap_remove" => Some(system_containers::native_hashmap_remove),
         "HashMap_keys" => Some(system_containers::native_hashmap_keys),
+        "HashMap_entries" => Some(system_containers::native_hashmap_entries),
         "HashMap_values" => Some(system_containers::native_hashmap_values),
         "HashMap_isEmpty" => Some(system_containers::native_hashmap_is_empty),
         "HashMap_clear" => Some(system_containers::native_hashmap_clear),

@@ -377,6 +377,58 @@ impl<'ctx> LlvmBackend<'ctx> {
         Ok(())
     }
 
+    /// Recover a closure's concrete return type when its literal omitted the
+    /// annotation (the parser defaults those to `void`). Dropping the value of
+    /// such a closure leaves callers reading garbage from a void trampoline.
+    fn infer_closure_return_type(
+        &self,
+        params: &[(String, Type)],
+        body: &[Stmt],
+        expr: Option<&Expr>,
+    ) -> Option<Type> {
+        fn param_type(params: &[(String, Type)], e: &Expr) -> Option<Type> {
+            match e {
+                Expr::Identifier(name, _) => params
+                    .iter()
+                    .find(|(n, _)| n == name)
+                    .map(|(_, t)| t.clone()),
+                Expr::Binary(l, _, r, _) => param_type(params, l).or_else(|| param_type(params, r)),
+                Expr::Unary(_, x, _) | Expr::Cast(x, _, _) | Expr::ErrorPropagation(x, _) => {
+                    param_type(params, x)
+                }
+                _ => None,
+            }
+        }
+        let from_expr = |e: &Expr| {
+            let ty = param_type(params, e).unwrap_or_else(|| self.infer_expr_type(e));
+            if ty.name() == "void" || ty.name() == "unknown" {
+                None
+            } else {
+                Some(ty)
+            }
+        };
+        if let Some(e) = expr {
+            return from_expr(e);
+        }
+        for stmt in body.iter().rev() {
+            if let Stmt::Return(Some(e)) = stmt {
+                if let Expr::Identifier(name, _) = e {
+                    for prior in body {
+                        if let Stmt::VarDecl(vd) | Stmt::ConstDecl(vd) = prior {
+                            if &vd.name == name {
+                                if let Some(t) = &vd.typ {
+                                    return Some(t.clone());
+                                }
+                            }
+                        }
+                    }
+                }
+                return from_expr(e);
+            }
+        }
+        None
+    }
+
     /// Compile a closure expression into a `{ i8*, i8* }` struct.
     ///
     /// Phase 1: generates a trampoline function for each closure. The closure
@@ -431,7 +483,13 @@ impl<'ctx> LlvmBackend<'ctx> {
             let llvm_ty = self.user_param_llvm_type(ty)?;
             param_tys.push(llvm_ty.into());
         }
-        let ret_ty = self.sig_ret_llvm_type(Some(return_type))?;
+        let effective_ret = if llvm_types::is_void(return_type) {
+            self.infer_closure_return_type(params, body, expr)
+                .unwrap_or_else(|| return_type.clone())
+        } else {
+            return_type.clone()
+        };
+        let ret_ty = self.sig_ret_llvm_type(Some(&effective_ret))?;
         let fn_type = match ret_ty {
             Some(rt) => rt.fn_type(&param_tys, false),
             None => void_ty.fn_type(&param_tys, false),
@@ -446,7 +504,7 @@ impl<'ctx> LlvmBackend<'ctx> {
         // own block afterwards).
         let saved_block = self.builder.get_insert_block();
         let saved_ret_ty = self.current_ret_ty.clone();
-        self.current_ret_ty = Some(return_type.clone());
+        self.current_ret_ty = Some(effective_ret.clone());
         let saved_locals = self.locals.clone();
         self.locals.clear();
         // A self-recursive call in the closure body must not reuse the
@@ -480,12 +538,15 @@ impl<'ctx> LlvmBackend<'ctx> {
         // Phase 1: captured vars are stored sequentially in the capture buffer.
         if !captured_vars.is_empty() {
             let i32_ty = self.context.i32_type();
+            // Capture offsets are byte offsets: GEP must use i8 as its element
+            // type, otherwise an opaque `ptr` element scales index 8 to 64 bytes.
+            let i8_ty = self.context.i8_type();
             for (i, var_name) in captured_vars.iter().enumerate() {
                 let offset = (i as u64) * 8;
                 let offset_val = i32_ty.const_int(offset, false);
                 let gep = unsafe {
                     self.builder.build_gep(
-                        i8_ptr_ty,
+                        i8_ty,
                         capture_data_ptr,
                         &[offset_val],
                         &format!("capture.{}.gep", var_name),
@@ -593,12 +654,13 @@ impl<'ctx> LlvmBackend<'ctx> {
 
             // Store each captured variable's value into the buffer.
             let i32_ty = self.context.i32_type();
+            let i8_ty = self.context.i8_type();
             for (i, var_name) in captured_vars.iter().enumerate() {
                 let offset = (i as u64) * 8;
                 let offset_val = i32_ty.const_int(offset, false);
                 let gep = unsafe {
                     self.builder.build_gep(
-                        i8_ptr_ty,
+                        i8_ty,
                         capture_buf,
                         &[offset_val],
                         &format!("{}.capture{}.gep", tramp_name, i),
@@ -664,12 +726,6 @@ impl<'ctx> LlvmBackend<'ctx> {
                     self.builder
                         .build_store(slot, cell)
                         .map_err(|e| format!("capture slot store: {:?}", e))?;
-                    // The enclosing local now aliases the same cell so writes
-                    // from the closure are visible in the defining scope.
-                    if let Some(outer) = self.locals.get_mut(var_name) {
-                        outer.ptr = cell;
-                        outer.shared = true;
-                    }
                 }
             }
 
@@ -1237,6 +1293,45 @@ mod tests {
         compile_program_checked(source).expect("compile program")
     }
 
+    /// Legacy `--compat` path: the analyzer rejects unannotated closures
+    /// assigned to typed variables, but the CLI compiles those programs.
+    fn compile_program_compat(source: &str) -> String {
+        let tokens = lexer::tokenize(source).expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "compat_test");
+        backend.declare_natives();
+        for decl in &ast.declarations {
+            match decl {
+                Declaration::Function(f) if f.type_params.is_empty() => {
+                    backend.function_decls.insert(f.name.clone(), f.clone());
+                }
+                Declaration::Class(c) => {
+                    backend.class_decls.insert(c.name.clone(), c.clone());
+                }
+                _ => {}
+            }
+        }
+        for decl in &ast.declarations {
+            if let Declaration::Function(f) = decl {
+                if f.name != "main" && f.type_params.is_empty() {
+                    backend.compile_function(f).expect("compile function");
+                }
+            }
+        }
+        let main = ast
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "main" => Some(f),
+                _ => None,
+            })
+            .expect("no main function");
+        backend.compile_main(main).expect("compile main");
+        backend.module.verify().expect("verify module");
+        backend.module.print_to_string().to_string()
+    }
+
     fn function_ir<'a>(ir: &'a str, name: &str) -> &'a str {
         let needle = format!("@{}(", name);
         for chunk in ir.split("define ").skip(1) {
@@ -1488,5 +1583,83 @@ mod tests {
         assert!(body.contains(" ret "), "callee must return after throw: {}", body);
         let caller = function_ir(&ir, "main");
         assert!(caller.contains("@__titrate_thrown"), "caller must check flag: {}", caller);
+    }
+
+    /// Capture slots are byte offsets into a malloc'd buffer. GEPs must use i8
+    /// elements: an opaque `ptr` element would scale offset 8 to 64 bytes and
+    /// corrupt the heap for any closure capturing two or more variables.
+    #[test]
+    fn closure_capture_slots_use_byte_offsets() {
+        let ir = compile_program(
+            r#"
+            public fn main(): void {
+                let a = 1;
+                let b = 2;
+                let c: fn(int): int = fn(x: int): int { return a + b + x; };
+                io::println(Integer.toString(c(0)));
+            }
+            "#,
+        );
+        assert!(
+            ir.contains("_closure_0.capture1.gep = getelementptr i8, ptr"),
+            "capture slot GEPs must be byte-offset: {}",
+            ir
+        );
+        let trampoline = function_ir(&ir, "_closure_0");
+        assert!(
+            trampoline.contains("getelementptr i8, ptr %0, i32 8"),
+            "capture reads must be byte-offset: {}",
+            trampoline
+        );
+    }
+
+    /// A closure literal without an explicit return type parses as `void`.
+    /// Its trampoline must still return the compiled value, or callers read
+    /// garbage from a void function.
+    #[test]
+    fn closure_without_return_annotation_returns_value() {
+        let ir = compile_program_compat(
+            r#"
+            public fn main(): void {
+                let twice: fn(int): int = fn(x: int) { return x * 2; };
+                io::println(Integer.toString(twice(3)));
+            }
+            "#,
+        );
+        let trampoline = function_ir(&ir, "_closure_0");
+        assert!(
+            trampoline.starts_with("internal i32 @_closure_0("),
+            "unannotated closure must infer an i32 return: {}",
+            trampoline
+        );
+        assert!(trampoline.contains(" ret i32 "), "closure must return its value: {}", trampoline);
+    }
+
+    /// A capture cell is only initialised where the closure is constructed.
+    /// Redirecting the enclosing local to that cell makes other branches read
+    /// an uninitialised (often null) value.
+    #[test]
+    fn conditional_capture_keeps_enclosing_local() {
+        let ir = compile_program(
+            r#"
+            public fn pick(flag: bool, f: fn(double): double): double {
+                if (flag) {
+                    let g: fn(double): double = fn(t: double): double { return f(t); };
+                    return g(1.0);
+                }
+                return f(2.0);
+            }
+            public fn main(): void {
+                let f: fn(double): double = fn(x: double): double { return x * x; };
+                io::println(Double.toString(pick(false, f)));
+            }
+            "#,
+        );
+        let body = function_ir(&ir, "pick");
+        assert!(
+            body.contains("load { ptr, ptr }, ptr %f"),
+            "the non-capture branch must read the original parameter slot: {}",
+            body
+        );
     }
 }

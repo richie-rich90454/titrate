@@ -295,6 +295,36 @@ impl<'ctx> LlvmBackend<'ctx> {
         if let Some(f) = self.fn_typed.get(&(target.name.clone(), type_key)).copied() {
             return Some(ModuleTargetResolution::Function(f));
         }
+        // A module wrapper that returns a compiled class must win over the
+        // same-named native: `Regex.fullMatch` builds a Match, while
+        // `Regex_fullMatch` only returns a bool. Decoding the native result
+        // as a class pointer faults on the first field read.
+        if let Some(module) = target.modules.last() {
+            let suffix = format!(".{}", module);
+            for ((m, n, keys), f) in &self.module_fn_typed {
+                if n != &target.name || keys.len() != argc {
+                    continue;
+                }
+                if m != module && !m.ends_with(&suffix) {
+                    continue;
+                }
+                let class_return = f
+                    .get_name()
+                    .to_str()
+                    .ok()
+                    .and_then(|sym| {
+                        self.fn_decl_symbols
+                            .iter()
+                            .find(|(_, s)| s.as_str() == sym)
+                    })
+                    .and_then(|(d, _)| d.return_type.clone())
+                    .is_some_and(|t| self.class_infos.contains_key(t.name()));
+                if class_return {
+                    return Some(ModuleTargetResolution::Function(*f));
+                }
+            }
+        }
+
         // Native-backed helpers such as `Boolean.toString`, `Integer.toString`
         // and `Double.toString` share the same arity under the bare name. The
         // native bridge marshals by each value's actual type, so prefer a
@@ -1666,8 +1696,8 @@ mod self_tail_call_tests {
 #[cfg(test)]
 mod call_target_tests {
     use super::{
-        capitalize, flatten_call_target, unresolved_call_error, CallTarget, LlvmBackend,
-        ModuleTargetResolution,
+        capitalize, flatten_call_target, native_bridge, unresolved_call_error, CallTarget,
+        LlvmBackend, ModuleTargetResolution,
     };
     use crate::ast::{Declaration, Expr, Literal, Span, Type};
     use crate::{analyzer, lexer, parser};
@@ -1815,6 +1845,64 @@ mod call_target_tests {
                 assert_eq!(name, "pick");
             }
             _ => panic!("expected a generic resolution"),
+        }
+    }
+
+    /// A module wrapper returning a compiled class must beat the same-named
+    /// native. `Regex_fullMatch` returns a bool; decoding it as a Match
+    /// pointer faults on the first field access.
+    #[test]
+    fn resolver_prefers_class_returning_module_wrapper_over_native() {
+        let context = Context::create();
+        let mut backend = backend_with_decls(&context);
+        let tokens = lexer::tokenize(
+            "public class Match { public fn init() {} } public fn fullMatch(a: string, b: string): Match { return new Match(); }",
+        )
+        .expect("tokenize");
+        let ast = parser::parse(tokens).expect("parse");
+        let typed = analyzer::analyze(&ast).expect("analyze");
+        let class = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Class(c) => Some(c.clone()),
+                _ => None,
+            })
+            .expect("Match class");
+        let decl = typed
+            .declarations
+            .iter()
+            .find_map(|d| match d {
+                Declaration::Function(f) if f.name == "fullMatch" => Some(f.clone()),
+                _ => None,
+            })
+            .expect("fullMatch decl");
+        backend.class_decls.insert(class.name.clone(), class.clone());
+        backend.compile_class_decl(&class).expect("class");
+        let sym = "Regex_fullMatch_wrapper";
+        let string_ty = native_bridge::titrate_array_type(&context);
+        let fv = backend.module.add_function(
+            sym,
+            context
+                .ptr_type(Default::default())
+                .fn_type(&[string_ty.into(), string_ty.into()], false),
+            None,
+        );
+        backend.fn_decl_symbols.push((decl, sym.to_string()));
+        let arg_types = vec![Type::simple("string"), Type::simple("string")];
+        let key = (
+            "tt.regex.Regex".to_string(),
+            "fullMatch".to_string(),
+            LlvmBackend::fn_type_key(&arg_types),
+        );
+        backend.module_fn_typed.insert(key, fv);
+        let target = CallTarget {
+            modules: vec!["regex".to_string(), "Regex".to_string()],
+            name: "fullMatch".to_string(),
+        };
+        match backend.resolve_module_call_target(&target, &arg_types, 2) {
+            Some(ModuleTargetResolution::Function(found)) => assert_eq!(found, fv),
+            _ => panic!("expected the class-returning module wrapper to win"),
         }
     }
 

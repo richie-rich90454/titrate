@@ -639,6 +639,9 @@ pub const TV_TUPLE: i32 = 18;
 pub const TV_HALF: i32 = 19;
 pub const TV_QUAD: i32 = 20;
 pub const TV_HANDLE: i32 = 21; // FileHandle, Socket, Listener, etc.
+/// A compiled `{fn_ptr, capture}` closure. The LLVM bridge stores both words
+/// in the 16-byte payload; codegen reads them back as a `{i64, ptr}` pair.
+pub const TV_CLOSURE: i32 = 22;
 
 // The LLVM bridge occasionally passes an opaque handle id or a stale pointer
 // where a length/array is expected. Never trust such payloads: bound the
@@ -722,6 +725,27 @@ fn tv_scalar(tag: i32, bits: i64) -> TitrateValue {
     }
 }
 
+/// Build a closure `TitrateValue` carrying both ABI words verbatim. The
+/// compiled caller reconstructs `{fn_ptr, capture}` from the payload.
+fn tv_closure(fn_ptr: i64, capture: i64) -> TitrateValue {
+    let mut raw = [0u8; 16];
+    raw[..8].copy_from_slice(&fn_ptr.to_le_bytes());
+    raw[8..].copy_from_slice(&capture.to_le_bytes());
+    TitrateValue {
+        tag: TV_CLOSURE,
+        _pad: 0,
+        payload: TitratePayload { raw },
+    }
+}
+
+/// Read the second payload word. It is zero for every scalar the LLVM bridge
+/// marshals (tv_scalar zeroes the tail); a non-zero value there means the
+/// payload is a two-word `{fn_ptr, capture}` function value.
+fn payload_second_word(t: &TitrateValue) -> i64 {
+    let raw = unsafe { t.payload.raw };
+    i64::from_le_bytes(raw[8..16].try_into().expect("8-byte payload word"))
+}
+
 /// Convert a VM `Value` into the C-ABI `TitrateValue` representation.
 ///
 /// Primitive values are stored inline in the payload. Strings and arrays are
@@ -783,11 +807,10 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             let count = elements.len();
             let layout =
                 std::alloc::Layout::array::<TitrateValue>(count.max(1)).expect("array layout");
-            let data = if count == 0 {
-                std::ptr::null_mut()
-            } else {
-                unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue }
-            };
+            // Always hand the compiled caller a non-null data pointer. Empty
+            // containers are decoded as `{i64, ptr}` and some call sites read
+            // element 0 as a scalar; a null pointer there is an access violation.
+            let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
             for (i, elem) in elements.iter().enumerate() {
                 let tv = value_to_titrate(elem);
                 unsafe {
@@ -810,11 +833,7 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
             let count = elements.len();
             let layout =
                 std::alloc::Layout::array::<TitrateValue>(count.max(1)).expect("tuple layout");
-            let data = if count == 0 {
-                std::ptr::null_mut()
-            } else {
-                unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue }
-            };
+            let data = unsafe { std::alloc::alloc_zeroed(layout) as *mut TitrateValue };
             for (i, elem) in elements.iter().enumerate() {
                 let tv = value_to_titrate(elem);
                 unsafe {
@@ -839,6 +858,19 @@ pub fn value_to_titrate(v: &Value) -> TitrateValue {
         Value::ResultErr(inner) => {
             let id = register_handle(Value::ResultErr(inner.clone()));
             tv_handle(TV_RESULT_ERR, id, TV_RESULT_ERR)
+        }
+        // A closure reconstructed from the native ABI carries its two words
+        // in a single Long upvalue. Round-trip it with both words intact so
+        // compiled callers can rebuild `{fn_ptr, capture}` and invoke it.
+        Value::Closure { func_idx, upvalues }
+            if upvalues.len() == 1
+                && matches!(&*upvalues[0].borrow(), Value::Long(_)) =>
+        {
+            let capture = match &*upvalues[0].borrow() {
+                Value::Long(c) => *c,
+                _ => unreachable!(),
+            };
+            tv_closure(*func_idx as i64, capture)
         }
         Value::ClassInstance { .. }
         | Value::EnumInstance { .. }
@@ -892,7 +924,25 @@ pub fn titrate_to_value(t: &TitrateValue) -> Value {
         }
         TV_LONG => {
             let l = unsafe { t.payload.long_val };
-            Value::Long(l)
+            let second = payload_second_word(t);
+            // The LLVM bridge marshals a `{fn_ptr, capture}` function value as
+            // TV_LONG with both words in the payload. Scalars always have a
+            // zero tail, so a non-zero second word identifies a closure.
+            if second != 0 {
+                Value::Closure {
+                    func_idx: l as usize,
+                    upvalues: vec![Rc::new(RefCell::new(Value::Long(second)))],
+                }
+            } else {
+                Value::Long(l)
+            }
+        }
+        TV_CLOSURE => {
+            let fn_ptr = unsafe { t.payload.long_val };
+            Value::Closure {
+                func_idx: fn_ptr as usize,
+                upvalues: vec![Rc::new(RefCell::new(Value::Long(payload_second_word(t))))],
+            }
         }
         TV_VAST | TV_UVAST => {
             let h = unsafe { t.payload.handle };
@@ -1294,6 +1344,68 @@ mod abi_tests {
             assert_eq!(wide, n as i64);
             assert!(unsafe { &tv.payload.raw[8..16] }.iter().all(|b| *b == 0));
         }
+    }
+
+    #[test]
+    fn tv_long_closure_capture_survives_native_round_trip() {
+        // The LLVM backend marshals a `{fn_ptr, capture}` function value as
+        // TV_LONG with both words in the payload. A native container stores
+        // and returns the decoded Value; dropping the second word made the
+        // compiled caller call a closure with a null capture and fault.
+        let fn_ptr = 0x1400_0000_1234_i64;
+        let capture = 0x2b00_0000_5678_i64;
+        let mut incoming = TitrateValue {
+            tag: TV_LONG,
+            _pad: 0,
+            payload: TitratePayload { raw: [0u8; 16] },
+        };
+        unsafe {
+            incoming.payload.raw[..8].copy_from_slice(&fn_ptr.to_le_bytes());
+            incoming.payload.raw[8..].copy_from_slice(&capture.to_le_bytes());
+        }
+
+        let decoded = titrate_to_value(&incoming);
+        let Value::Closure {
+            func_idx,
+            ref upvalues,
+        } = decoded
+        else {
+            panic!("expected a closure reconstructed from TV_LONG");
+        };
+        assert_eq!(func_idx as i64, fn_ptr);
+        assert_eq!(upvalues.len(), 1);
+        assert!(matches!(&*upvalues[0].borrow(), Value::Long(c) if *c == capture));
+
+        let outgoing = value_to_titrate(&decoded);
+        assert_eq!(outgoing.tag, TV_CLOSURE);
+        assert_eq!(unsafe { outgoing.payload.long_val }, fn_ptr);
+        assert_eq!(payload_second_word(&outgoing), capture);
+
+        // A second trip through the decoder must preserve both words again.
+        match titrate_to_value(&outgoing) {
+            Value::Closure { func_idx, upvalues } => {
+                assert_eq!(func_idx as i64, fn_ptr);
+                assert!(matches!(&*upvalues[0].borrow(), Value::Long(c) if *c == capture));
+            }
+            _ => panic!("expected closure from TV_CLOSURE"),
+        }
+    }
+
+    #[test]
+    fn plain_tv_long_stays_a_scalar() {
+        let tv = tv_scalar(TV_LONG, -987654321);
+        assert!(matches!(titrate_to_value(&tv), Value::Long(n) if n == -987654321));
+    }
+
+    #[test]
+    fn empty_array_payload_has_non_null_data_pointer() {
+        // Compiled callers decode containers as `{i64, ptr}` and may load
+        // element 0 as a scalar; a null data pointer faults on that load.
+        let mut tv = value_to_titrate(&Value::Array { elements: vec![] });
+        assert_eq!(tv.tag, TV_ARRAY);
+        assert_eq!(unsafe { tv.payload.array.len }, 0);
+        assert!(!unsafe { tv.payload.array.data }.is_null());
+        free_titrate_value(&mut tv);
     }
 
     #[test]

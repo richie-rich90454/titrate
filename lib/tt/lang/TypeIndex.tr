@@ -34,7 +34,12 @@ public class TypeIndex {
     // wrapped type name. Returns -1, 0, or 1.
     public fn compareTo(other: TypeIndex): int {
         if (other == null) { return 1; }
-        return String.compareTo(this.typeName, other.typeName);
+        // Compare directly: module-qualified String.compareTo collides with the
+        // top-level TypeIndex.compareTo on the native backend's flat function
+        // table, which turned this into unbounded recursion.
+        if (this.typeName < other.typeName) { return -1; }
+        if (this.typeName > other.typeName) { return 1; }
+        return 0;
     }
 
     // Return a hash code for this TypeIndex, suitable for use in hash-based

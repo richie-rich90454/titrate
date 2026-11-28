@@ -272,6 +272,45 @@ impl<'ctx> LlvmBackend<'ctx> {
             || matches!(type_name, "ArrayList" | "HashMap" | "array" | "Variant" | "Result")
         {
             let i1_ty = self.context.bool_type();
+            // A boxed raw scalar passed to a `Variant` parameter has the
+            // `{ i64 value, ptr marker|null }` shape but is NOT a Variant
+            // instance. `is Variant` must be false for it so the source can
+            // fall through to its raw-value branch (as the bytecode VM does).
+            if type_name == "Variant" {
+                let obj_val = self.compile_expr(obj)?;
+                if obj_val.is_struct_value() {
+                    if let BasicValueEnum::StructValue(sv) = obj_val {
+                        if let Ok(BasicValueEnum::PointerValue(data)) =
+                            self.builder.build_extract_value(sv, 1, "is.variant.data")
+                        {
+                            let numeric_marker = self.numeric_box_marker();
+                            let data_bits = self.builder
+                                .build_ptr_to_int(data, self.context.i64_type(), "is.variant.bits")
+                                .map_err(|e| format!("is variant data bits failed: {:?}", e))?;
+                            let marker_bits = self.builder
+                                .build_ptr_to_int(numeric_marker, self.context.i64_type(), "is.variant.marker")
+                                .map_err(|e| format!("is variant marker bits failed: {:?}", e))?;
+                            let is_marker = self.builder
+                                .build_int_compare(inkwell::IntPredicate::EQ, data_bits, marker_bits, "is.variant.numeric")
+                                .map_err(|e| format!("is variant numeric compare failed: {:?}", e))?;
+                            let is_null = self.builder
+                                .build_int_compare(inkwell::IntPredicate::EQ, data_bits, self.context.i64_type().const_zero(), "is.variant.null")
+                                .map_err(|e| format!("is variant null compare failed: {:?}", e))?;
+                            let boxed_scalar = self.builder
+                                .build_or(is_marker, is_null, "is.variant.boxed")
+                                .map_err(|e| format!("is variant boxed combine failed: {:?}", e))?;
+                            let not_boxed = self.builder
+                                .build_not(boxed_scalar, "is.variant.real")
+                                .map_err(|e| format!("is variant real compare failed: {:?}", e))?;
+                            let inferred = self.infer_expr_type(obj).name() == type_name;
+                            return self.builder
+                                .build_and(not_boxed, i1_ty.const_int(if inferred { 1 } else { 0 }, false), "is.variant.result")
+                                .map(BasicValueEnum::from)
+                                .map_err(|e| format!("is variant result failed: {:?}", e));
+                        }
+                    }
+                }
+            }
             let matches = self.infer_expr_type(obj).name() == type_name;
             return Ok(i1_ty.const_int(if matches { 1 } else { 0 }, false).into());
         }
@@ -417,6 +456,48 @@ mod tests {
     fn parse_program(source: &str) -> Program {
         let tokens = crate::lexer::tokenize(source).expect("tokenize");
         crate::parser::parse(tokens).expect("parse")
+    }
+
+    #[test]
+    fn is_variant_false_for_boxed_scalar_payload() {
+        let context = inkwell::context::Context::create();
+        let mut backend = LlvmBackend::new(&context, "is-variant-scalar");
+        let f = backend.module.add_function(
+            "check_is_variant",
+            context.void_type().fn_type(&[], false),
+            None,
+        );
+        let entry = context.append_basic_block(f, "entry");
+        backend.builder.position_at_end(entry);
+        let slot_ty = native_bridge::titrate_array_type(&context);
+        let slot = backend.builder.build_alloca(slot_ty, "v").expect("alloca");
+        let boxed = slot_ty.const_named_struct(&[
+            context.i64_type().const_int(5, false).into(),
+            backend.numeric_box_marker().into(),
+        ]);
+        backend.builder.build_store(slot, boxed).expect("store");
+        backend.locals.insert(
+            "v".to_string(),
+            super::super::LocalVar {
+                ptr: slot,
+                ty: slot_ty.into(),
+                full_type: None,
+                titrate_type: Some("Variant".to_string()),
+                shared: false,
+                closure_sig: None,
+            },
+        );
+        let expr = Expr::Identifier("v".to_string(), crate::ast::Span::unknown());
+        let result = backend
+            .compile_is(&expr, &crate::ast::Type::simple("Variant"))
+            .expect("is check");
+        let ir = backend.module.print_to_string().to_string();
+        assert!(
+            ir.contains("is.variant.boxed") && ir.contains("is.variant.result"),
+            "boxed scalar must be distinguished from a real Variant instance: {}",
+            ir
+        );
+        assert!(result.is_int_value());
     }
 
     #[test]

@@ -306,6 +306,25 @@ pub(crate) fn native_hashmap_keys(args: &[Value]) -> Result<Value, String> {
     Ok(Value::Array { elements: keys })
 }
 
+/// HashMap_entries(map) -> array of (key, value) pairs.
+pub(crate) fn native_hashmap_entries(args: &[Value]) -> Result<Value, String> {
+    if args.is_empty() {
+        return Err("HashMap.entries: expected 1 argument".to_string());
+    }
+    let pairs = hashmap_pairs(&args[0])?;
+    let mut entries = Vec::with_capacity(pairs.len());
+    for p in &pairs {
+        if let Value::Array { elements } = p {
+            if elements.len() == 2 {
+                entries.push(Value::Tuple {
+                    elements: vec![elements[0].clone(), elements[1].clone()],
+                });
+            }
+        }
+    }
+    Ok(Value::Array { elements: entries })
+}
+
 /// HashMap_values(map) -> array
 pub(crate) fn native_hashmap_values(args: &[Value]) -> Result<Value, String> {
     if args.is_empty() {
@@ -355,4 +374,39 @@ pub(crate) fn native_hashmap_to_string(args: &[Value]) -> Result<Value, String> 
         }
     }
     Ok(Value::String(Rc::new(format!("{{{}}}", parts.join(", ")))))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn hashmap_entries_returns_tuple_pairs() {
+        // HashMap_entries was emitted by codegen but absent from the native
+        // registry. The unknown-native ResultErr was decoded as an array and
+        // its handle id became a bogus element count, crashing the caller.
+        let map = Value::Array {
+            elements: vec![
+                Value::Array {
+                    elements: vec![Value::String(Rc::new("a".to_string())), Value::Int(1)],
+                },
+                Value::Array {
+                    elements: vec![Value::String(Rc::new("b".to_string())), Value::Int(2)],
+                },
+            ],
+        };
+        let result = native_hashmap_entries(&[map]).expect("entries should succeed");
+        let Value::Array { elements } = result else {
+            panic!("expected an array of entries");
+        };
+        assert_eq!(elements.len(), 2);
+        assert!(matches!(&elements[0], Value::Tuple { elements }
+            if elements.len() == 2
+                && matches!(&elements[0], Value::String(s) if s.as_str() == "a")
+                && matches!(&elements[1], Value::Int(1))));
+        assert!(matches!(&elements[1], Value::Tuple { elements }
+            if elements.len() == 2
+                && matches!(&elements[0], Value::String(s) if s.as_str() == "b")
+                && matches!(&elements[1], Value::Int(2))));
+    }
 }
